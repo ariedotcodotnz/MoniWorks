@@ -7,13 +7,14 @@
 - **Phase 3 Tax & Bank COMPLETE** - Tag: 0.0.3
 - **Phase 4 Reports & Polish COMPLETE** - Tag: 0.0.8
 - **Phase 5 Contacts & Products COMPLETE** - Tag: 0.0.9
+- **Phase 6 A/R COMPLETE** - Tag: 0.1.0 (A/P still pending)
 - All 37 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, ApplicationTest: 1)
-- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product
+- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql
-- All repository interfaces created (24 repositories)
-- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService
-- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql
+- All repository interfaces created (27 repositories)
+- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService
+- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
@@ -98,12 +99,19 @@ Per specs, Release 1 must deliver:
   - Detail view showing pricing, tax/accounts, other info, sticky note display
   - Added Products navigation to MainLayout with PACKAGE icon
 
-### Phase 6: Release 2 - A/R and A/P (NOT STARTED)
-- [ ] Accounts Receivable (spec 09)
-  - SalesInvoice and SalesInvoiceLine entities
-  - Invoice workflow: DRAFT → ISSUED → VOID
-  - Customer statements
-  - Receipt allocation to invoices
+### Phase 6: Release 2 - A/R and A/P (A/R COMPLETE, A/P NOT STARTED)
+- [x] Accounts Receivable (spec 09)
+  - Created SalesInvoice and SalesInvoiceLine entities
+  - SalesInvoice with invoiceNumber, contactId, issueDate, dueDate, status (DRAFT/ISSUED/VOID)
+  - SalesInvoiceLine with product reference, description, qty, unitPrice, account, taxCode
+  - Created ReceivableAllocation entity for receipt-to-invoice allocation
+  - Created V8__sales_invoices.sql migration
+  - Created SalesInvoiceRepository, SalesInvoiceLineRepository, ReceivableAllocationRepository
+  - Created SalesInvoiceService with full CRUD, invoice issuing (posts to ledger), void capability
+  - Created ReceivableAllocationService for payment allocation with auto-suggestion
+  - Created SalesInvoicesView with master-detail layout, status filtering, line item management
+  - Invoice issuing creates balanced journal entries (AR debit, Income credit, GST credit)
+  - Added Sales Invoices navigation to MainLayout with INVOICE icon
 - [ ] Accounts Payable (spec 10)
   - SupplierBill and SupplierBillLine entities
   - Payment runs
@@ -121,6 +129,8 @@ Per specs, Release 1 must deliver:
 - File attachments stored outside DB with checksums for integrity; deduplication by checksum within company scope
 - AuditService.logEvent requires User parameter (can be null for system actions)
 - AccountService.findByType takes companyId (Long), not Company object
+- REGEXP is not supported in HQL/JPQL - use application-side filtering for regex-like matching
+- TransactionService.createTransaction requires description parameter
 
 ## Technical Notes
 - Build: `./mvnw compile`

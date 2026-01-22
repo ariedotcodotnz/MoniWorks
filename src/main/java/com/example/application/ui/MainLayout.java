@@ -9,6 +9,7 @@ import com.example.application.ui.views.GstReturnsView;
 import com.example.application.ui.views.PeriodsView;
 import com.example.application.ui.views.ProductsView;
 import com.example.application.ui.views.ReportsView;
+import com.example.application.ui.views.SalesInvoicesView;
 import com.example.application.ui.views.TaxCodesView;
 import com.example.application.ui.views.TransactionsView;
 import com.vaadin.flow.component.applayout.AppLayout;
@@ -64,6 +65,8 @@ public class MainLayout extends AppLayout {
             VaadinIcon.DASHBOARD.create()));
         nav.addItem(new SideNavItem("Transactions", TransactionsView.class,
             VaadinIcon.EXCHANGE.create()));
+        nav.addItem(new SideNavItem("Sales Invoices", SalesInvoicesView.class,
+            VaadinIcon.INVOICE.create()));
         nav.addItem(new SideNavItem("Contacts", ContactsView.class,
             VaadinIcon.USERS.create()));
         nav.addItem(new SideNavItem("Products", ProductsView.class,
