@@ -1,5 +1,9 @@
 package com.example.application.ui;
 
+import com.example.application.domain.Company;
+import com.example.application.domain.User;
+import com.example.application.security.Permissions;
+import com.example.application.service.CompanyContextService;
 import com.example.application.ui.views.AccountsView;
 import com.example.application.ui.views.AuditEventsView;
 import com.example.application.ui.views.BankReconciliationView;
@@ -19,10 +23,14 @@ import com.example.application.ui.views.StatementRunsView;
 import com.example.application.ui.views.SupplierBillsView;
 import com.example.application.ui.views.TaxCodesView;
 import com.example.application.ui.views.TransactionsView;
+import com.example.application.ui.views.UsersView;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Header;
 import com.vaadin.flow.component.html.Span;
@@ -37,9 +45,11 @@ import com.vaadin.flow.router.Layout;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import jakarta.annotation.security.PermitAll;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Main application layout with side navigation and global search.
@@ -49,10 +59,14 @@ import java.nio.charset.StandardCharsets;
 @PermitAll
 public class MainLayout extends AppLayout {
 
+    private final CompanyContextService companyContextService;
     private final TextField globalSearchField;
+    private final ComboBox<Company> companySwitcher;
 
-    public MainLayout() {
+    public MainLayout(CompanyContextService companyContextService) {
+        this.companyContextService = companyContextService;
         globalSearchField = createGlobalSearchField();
+        companySwitcher = createCompanySwitcher();
         createHeader();
         createDrawer();
     }
@@ -63,7 +77,6 @@ public class MainLayout extends AppLayout {
         searchField.setPrefixComponent(VaadinIcon.SEARCH.create());
         searchField.setWidth("300px");
         searchField.setClearButtonVisible(true);
-        searchField.addClassNames(LumoUtility.Margin.Left.AUTO);
 
         // Navigate to search view on Enter
         searchField.addKeyDownListener(Key.ENTER, e -> {
@@ -80,6 +93,66 @@ public class MainLayout extends AppLayout {
         return searchField;
     }
 
+    private ComboBox<Company> createCompanySwitcher() {
+        ComboBox<Company> switcher = new ComboBox<>();
+        switcher.setPlaceholder("Select company");
+        switcher.setWidth("200px");
+        switcher.setItemLabelGenerator(Company::getName);
+
+        // Load accessible companies
+        List<Company> companies = companyContextService.getAccessibleCompanies();
+        switcher.setItems(companies);
+
+        // Set current company
+        Company currentCompany = companyContextService.getCurrentCompany();
+        if (currentCompany != null && companies.contains(currentCompany)) {
+            switcher.setValue(currentCompany);
+        } else if (!companies.isEmpty()) {
+            switcher.setValue(companies.get(0));
+            companyContextService.setCurrentCompany(companies.get(0));
+        }
+
+        // Handle company switching
+        switcher.addValueChangeListener(event -> {
+            Company selected = event.getValue();
+            if (selected != null && !selected.equals(companyContextService.getCurrentCompany())) {
+                companyContextService.setCurrentCompany(selected);
+                companyContextService.clearUserCache();
+                // Refresh the current page
+                UI.getCurrent().getPage().reload();
+            }
+        });
+
+        return switcher;
+    }
+
+    private HorizontalLayout createUserInfo() {
+        User currentUser = companyContextService.getCurrentUser();
+        String userName = currentUser != null ? currentUser.getDisplayName() : "Guest";
+        String roleName = companyContextService.getCurrentRoleName();
+
+        Span userLabel = new Span(userName);
+        userLabel.addClassNames(LumoUtility.FontSize.SMALL, LumoUtility.FontWeight.MEDIUM);
+
+        Span roleLabel = new Span(roleName != null ? "(" + roleName + ")" : "");
+        roleLabel.addClassNames(LumoUtility.FontSize.XSMALL, LumoUtility.TextColor.SECONDARY);
+
+        Button logoutBtn = new Button(VaadinIcon.SIGN_OUT.create());
+        logoutBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        logoutBtn.setTooltipText("Sign out");
+        logoutBtn.addClickListener(e -> {
+            SecurityContextHolder.clearContext();
+            UI.getCurrent().getPage().setLocation("/logout");
+        });
+
+        HorizontalLayout userInfo = new HorizontalLayout(userLabel, roleLabel, logoutBtn);
+        userInfo.setAlignItems(FlexComponent.Alignment.CENTER);
+        userInfo.setSpacing(true);
+        userInfo.addClassNames(LumoUtility.Padding.Horizontal.SMALL);
+
+        return userInfo;
+    }
+
     private void createHeader() {
         H1 logo = new H1("MoniWorks");
         logo.addClassNames(
@@ -87,11 +160,14 @@ public class MainLayout extends AppLayout {
             LumoUtility.Margin.MEDIUM
         );
 
+        // Spacer to push elements to the right
+        Span spacer = new Span();
+        spacer.addClassNames(LumoUtility.Flex.GROW);
+
         HorizontalLayout headerContent = new HorizontalLayout();
         headerContent.setWidthFull();
         headerContent.setAlignItems(FlexComponent.Alignment.CENTER);
-        headerContent.add(new DrawerToggle(), logo, globalSearchField);
-        headerContent.expand(globalSearchField);
+        headerContent.add(new DrawerToggle(), logo, companySwitcher, spacer, globalSearchField, createUserInfo());
 
         Header header = new Header(headerContent);
         header.addClassNames(
@@ -145,6 +221,12 @@ public class MainLayout extends AppLayout {
             VaadinIcon.LIST.create()));
         nav.addItem(new SideNavItem("Search", GlobalSearchView.class,
             VaadinIcon.SEARCH.create()));
+
+        // Admin-only menu items
+        if (companyContextService.hasPermission(Permissions.MANAGE_USERS)) {
+            nav.addItem(new SideNavItem("Users", UsersView.class,
+                VaadinIcon.GROUP.create()));
+        }
 
         Scroller scroller = new Scroller(nav);
         scroller.addClassNames(LumoUtility.Padding.SMALL);

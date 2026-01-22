@@ -29,4 +29,15 @@ public interface CompanyMembershipRepository extends JpaRepository<CompanyMember
     List<Company> findCompaniesByActiveUser(@Param("user") User user);
 
     boolean existsByUserAndCompany(User user, Company company);
+
+    @Query("SELECT cm FROM CompanyMembership cm WHERE cm.user.id = :userId AND cm.company.id = :companyId")
+    Optional<CompanyMembership> findByUserIdAndCompanyId(@Param("userId") Long userId, @Param("companyId") Long companyId);
+
+    @Query("SELECT cm FROM CompanyMembership cm WHERE cm.company.id = :companyId " +
+           "AND cm.status = com.example.application.domain.CompanyMembership.MembershipStatus.ACTIVE")
+    List<CompanyMembership> findActiveByCompanyId(@Param("companyId") Long companyId);
+
+    @Query("SELECT cm FROM CompanyMembership cm WHERE cm.company = :company " +
+           "AND cm.status = com.example.application.domain.CompanyMembership.MembershipStatus.ACTIVE")
+    List<CompanyMembership> findActiveByCompany(@Param("company") Company company);
 }

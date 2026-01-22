@@ -1,14 +1,18 @@
 package com.example.application.service;
 
 import com.example.application.domain.Company;
+import com.example.application.domain.CompanyMembership;
 import com.example.application.domain.User;
+import com.example.application.repository.CompanyMembershipRepository;
 import com.example.application.repository.UserRepository;
+import com.example.application.security.Permissions;
 import com.vaadin.flow.spring.annotation.VaadinSessionScope;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -22,12 +26,17 @@ public class CompanyContextService {
 
     private final CompanyService companyService;
     private final UserRepository userRepository;
+    private final CompanyMembershipRepository membershipRepository;
     private Company currentCompany;
     private User currentUser;
+    private CompanyMembership currentMembership;
 
-    public CompanyContextService(CompanyService companyService, UserRepository userRepository) {
+    public CompanyContextService(CompanyService companyService,
+                                  UserRepository userRepository,
+                                  CompanyMembershipRepository membershipRepository) {
         this.companyService = companyService;
         this.userRepository = userRepository;
+        this.membershipRepository = membershipRepository;
     }
 
     /**
@@ -109,5 +118,75 @@ public class CompanyContextService {
      */
     public void clearUserCache() {
         currentUser = null;
+        currentMembership = null;
+    }
+
+    /**
+     * Gets the current user's membership in the current company.
+     * @return the membership, or null if not a member
+     */
+    public CompanyMembership getCurrentMembership() {
+        if (currentMembership == null) {
+            User user = getCurrentUser();
+            Company company = getCurrentCompany();
+            if (user != null && company != null) {
+                currentMembership = membershipRepository.findByUserAndCompany(user, company)
+                    .orElse(null);
+            }
+        }
+        return currentMembership;
+    }
+
+    /**
+     * Gets all companies the current user has access to.
+     * @return list of accessible companies
+     */
+    public List<Company> getAccessibleCompanies() {
+        User user = getCurrentUser();
+        if (user == null) {
+            return List.of();
+        }
+        return membershipRepository.findCompaniesByActiveUser(user);
+    }
+
+    /**
+     * Checks if the current user has the specified permission in the current company.
+     * @param permissionName the permission to check
+     * @return true if user has the permission
+     */
+    public boolean hasPermission(String permissionName) {
+        CompanyMembership membership = getCurrentMembership();
+        if (membership == null ||
+            membership.getStatus() != CompanyMembership.MembershipStatus.ACTIVE) {
+            return false;
+        }
+        // ADMIN has all permissions
+        if (membership.getRole().hasPermission(Permissions.ADMIN)) {
+            return true;
+        }
+        return membership.getRole().hasPermission(permissionName);
+    }
+
+    /**
+     * Checks if the current user has any of the specified permissions.
+     * @param permissionNames the permissions to check
+     * @return true if user has at least one of the permissions
+     */
+    public boolean hasAnyPermission(String... permissionNames) {
+        for (String perm : permissionNames) {
+            if (hasPermission(perm)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gets the current user's role name in the current company.
+     * @return the role name, or null if not a member
+     */
+    public String getCurrentRoleName() {
+        CompanyMembership membership = getCurrentMembership();
+        return membership != null ? membership.getRole().getName() : null;
     }
 }

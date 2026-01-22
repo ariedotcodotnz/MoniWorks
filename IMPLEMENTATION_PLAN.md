@@ -20,13 +20,14 @@
 - **Phase 13c Statement Runs COMPLETE** - Tag: 0.2.4
 - **Phase 13d Statement Runs UI COMPLETE** - Tag: 0.2.5
 - **Phase 14 SavedView Grid Integration COMPLETE** - Tag: 0.2.6
+- **Phase 15 User & Permission Management COMPLETE** - Tag: 0.2.7
 - All 70 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql
 - All repository interfaces created (38 repositories)
-- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService
-- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView
+- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService
+- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
@@ -402,6 +403,35 @@ Per specs, Release 1 must deliver:
   - Added column resizing support (.setResizable(true)) to all columns
   - GridCustomizer allows users to save custom column layouts per view
 
+### Phase 15: User & Permission Management (COMPLETE) - Tag: 0.2.7
+- [x] Method security and permission system (spec 14)
+  - Added @EnableMethodSecurity to SecurityConfig to enable method-level security
+  - Created CompanyPermissionEvaluator implementing PermissionEvaluator for company-scoped permission checks
+  - Created Permissions constants class with compile-time safety for all permission names
+  - Created RoleService for role management with CRUD operations
+  - Created PermissionService for permission management with role-permission assignments
+  - Created V15__additional_permissions.sql migration adding 13 new permissions:
+    - VIEW_USERS, MANAGE_USERS, VIEW_ROLES, MANAGE_ROLES
+    - MANAGE_COMPANY_SETTINGS, VIEW_AUDIT_LOG, EXPORT_DATA
+    - MANAGE_FISCAL_YEARS, CLOSE_PERIODS, REVERSE_TRANSACTIONS
+    - MANAGE_BUDGETS, MANAGE_KPIS, MANAGE_RECURRING_TEMPLATES
+  - Enhanced CompanyContextService with hasPermission() method for convenient permission checking
+- [x] User interface enhancements
+  - Added company switcher dropdown to MainLayout header for multi-company users
+  - Added user info display and logout button to MainLayout header
+  - Created UsersView for user and company membership management (admin only)
+  - Added @RolesAllowed("ADMIN") to UsersView for view-level access control
+- [x] Repository enhancements
+  - Added findByUserIdAndCompanyId to CompanyMembershipRepository for user-company lookups
+  - Added findActiveByCompany to CompanyMembershipRepository for active member queries
+  - Added findByStatus to UserRepository for status-based user filtering
+- [x] Service enhancements
+  - Enhanced UserService with membership management methods:
+    - addUserToCompany() for adding users to companies with roles
+    - removeUserFromCompany() for removing memberships
+    - updateMembershipRole() for changing user roles within a company
+    - getUserCompanies() for listing all companies a user belongs to
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -441,6 +471,10 @@ Per specs, Release 1 must deliver:
 - AR/AP Aging reports categorize by days overdue using ChronoUnit.DAYS.between(dueDate, asOfDate)
 - Vaadin Grid Column does not have setClassNameGenerator() method - use Grid.setClassNameGenerator() on the grid instead
 - User entity uses getDisplayName() not getFullName() for user's display name
+- SecurityConfig with @EnableMethodSecurity requires a MethodSecurityExpressionHandler bean with custom PermissionEvaluator
+- Company-scoped permission checks use CompanyPermissionEvaluator.hasCompanyPermission() via @PreAuthorize
+- Vaadin views can use @RolesAllowed for role-based access control at the view level
+- CompanyContextService.hasPermission() provides convenient permission checking in UI components
 
 ## Technical Notes
 - Build: `./mvnw compile`

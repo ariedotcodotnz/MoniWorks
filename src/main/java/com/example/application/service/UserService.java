@@ -108,4 +108,43 @@ public class UserService {
     public User save(User user) {
         return userRepository.save(user);
     }
+
+    @Transactional(readOnly = true)
+    public List<User> findAll() {
+        return userRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> findByStatus(User.Status status) {
+        return userRepository.findByStatus(status);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CompanyMembership> getMembershipsByCompany(Company company) {
+        return membershipRepository.findActiveByCompany(company);
+    }
+
+    /**
+     * Updates the role for an existing membership.
+     */
+    public CompanyMembership updateMembershipRole(CompanyMembership membership, Role newRole) {
+        membership.setRole(newRole);
+        return membershipRepository.save(membership);
+    }
+
+    /**
+     * Removes a user from a company (deactivates membership).
+     */
+    public void removeFromCompany(CompanyMembership membership) {
+        membership.setStatus(CompanyMembership.MembershipStatus.INACTIVE);
+        membershipRepository.save(membership);
+    }
+
+    /**
+     * Reactivates a membership.
+     */
+    public void reactivateMembership(CompanyMembership membership) {
+        membership.setStatus(CompanyMembership.MembershipStatus.ACTIVE);
+        membershipRepository.save(membership);
+    }
 }
