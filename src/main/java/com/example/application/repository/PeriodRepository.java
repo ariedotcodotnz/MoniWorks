@@ -33,4 +33,15 @@ public interface PeriodRepository extends JpaRepository<Period, Long> {
            "AND :date BETWEEN p.startDate AND p.endDate")
     Optional<Period> findByCompanyIdAndDate(@Param("companyId") Long companyId,
                                             @Param("date") LocalDate date);
+
+    /**
+     * Find all periods that overlap with the given date range.
+     * A period overlaps if its start date <= rangeEndDate AND its end date >= rangeStartDate.
+     */
+    @Query("SELECT p FROM Period p WHERE p.fiscalYear.company = :company " +
+           "AND p.startDate <= :endDate AND p.endDate >= :startDate " +
+           "ORDER BY p.startDate")
+    List<Period> findByFiscalYearCompanyAndDateRangeOverlap(@Param("company") Company company,
+                                                             @Param("startDate") LocalDate startDate,
+                                                             @Param("endDate") LocalDate endDate);
 }

@@ -1,13 +1,14 @@
 package com.example.application.ui.views;
 
+import com.example.application.domain.Budget;
 import com.example.application.domain.Company;
-import com.example.application.service.CompanyContextService;
-import com.example.application.service.FiscalYearService;
-import com.example.application.service.ReportingService;
+import com.example.application.domain.Department;
+import com.example.application.service.*;
 import com.example.application.service.ReportingService.*;
 import com.example.application.ui.MainLayout;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
@@ -30,6 +31,7 @@ import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * View for displaying financial reports.
@@ -44,6 +46,8 @@ public class ReportsView extends VerticalLayout {
     private final ReportingService reportingService;
     private final CompanyContextService companyContextService;
     private final FiscalYearService fiscalYearService;
+    private final DepartmentService departmentService;
+    private final BudgetService budgetService;
 
     private final DatePicker startDatePicker = new DatePicker("Start Date");
     private final DatePicker endDatePicker = new DatePicker("End Date");
@@ -52,16 +56,28 @@ public class ReportsView extends VerticalLayout {
     private final VerticalLayout trialBalanceContent = new VerticalLayout();
     private final VerticalLayout profitLossContent = new VerticalLayout();
     private final VerticalLayout balanceSheetContent = new VerticalLayout();
+    private final VerticalLayout budgetVsActualContent = new VerticalLayout();
+
+    // Department filter for P&L
+    private ComboBox<Department> plDepartmentFilter;
+
+    // Budget vs Actual controls
+    private ComboBox<Budget> bvaBudgetSelect;
+    private ComboBox<Department> bvaDepartmentFilter;
 
     private static final DecimalFormat MONEY_FORMAT = new DecimalFormat("#,##0.00");
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy");
 
     public ReportsView(ReportingService reportingService,
                        CompanyContextService companyContextService,
-                       FiscalYearService fiscalYearService) {
+                       FiscalYearService fiscalYearService,
+                       DepartmentService departmentService,
+                       BudgetService budgetService) {
         this.reportingService = reportingService;
         this.companyContextService = companyContextService;
         this.fiscalYearService = fiscalYearService;
+        this.departmentService = departmentService;
+        this.budgetService = budgetService;
 
         addClassName("reports-view");
         setSizeFull();
@@ -69,6 +85,7 @@ public class ReportsView extends VerticalLayout {
         add(createHeader(), createTabSheet());
 
         initializeDateDefaults();
+        initializeDepartmentAndBudgetFilters();
     }
 
     private HorizontalLayout createHeader() {
@@ -99,6 +116,30 @@ public class ReportsView extends VerticalLayout {
             });
     }
 
+    private void initializeDepartmentAndBudgetFilters() {
+        Company company = companyContextService.getCurrentCompany();
+
+        // Load departments for filters
+        List<Department> departments = departmentService.findActiveByCompany(company);
+
+        if (plDepartmentFilter != null) {
+            plDepartmentFilter.setItems(departments);
+        }
+
+        if (bvaDepartmentFilter != null) {
+            bvaDepartmentFilter.setItems(departments);
+        }
+
+        // Load budgets for Budget vs Actual
+        List<Budget> budgets = budgetService.findActiveByCompany(company);
+        if (bvaBudgetSelect != null) {
+            bvaBudgetSelect.setItems(budgets);
+            if (!budgets.isEmpty()) {
+                bvaBudgetSelect.setValue(budgets.get(0));
+            }
+        }
+    }
+
     private TabSheet createTabSheet() {
         TabSheet tabSheet = new TabSheet();
         tabSheet.setSizeFull();
@@ -117,6 +158,11 @@ public class ReportsView extends VerticalLayout {
         Tab balanceSheetTab = new Tab(VaadinIcon.PIE_CHART.create(), new Span("Balance Sheet"));
         VerticalLayout balanceSheetLayout = createBalanceSheetTab();
         tabSheet.add(balanceSheetTab, balanceSheetLayout);
+
+        // Budget vs Actual Tab
+        Tab budgetVsActualTab = new Tab(VaadinIcon.CHART.create(), new Span("Budget vs Actual"));
+        VerticalLayout budgetVsActualLayout = createBudgetVsActualTab();
+        tabSheet.add(budgetVsActualTab, budgetVsActualLayout);
 
         return tabSheet;
     }
@@ -156,6 +202,13 @@ public class ReportsView extends VerticalLayout {
         plStartDate.setWidth("180px");
         plEndDate.setWidth("180px");
 
+        // Department filter
+        plDepartmentFilter = new ComboBox<>("Department");
+        plDepartmentFilter.setWidth("200px");
+        plDepartmentFilter.setPlaceholder("All Departments");
+        plDepartmentFilter.setClearButtonVisible(true);
+        plDepartmentFilter.setItemLabelGenerator(d -> d.getCode() + " - " + d.getName());
+
         // Sync with main date pickers
         startDatePicker.addValueChangeListener(e -> plStartDate.setValue(e.getValue()));
         endDatePicker.addValueChangeListener(e -> plEndDate.setValue(e.getValue()));
@@ -166,7 +219,7 @@ public class ReportsView extends VerticalLayout {
         generateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         generateBtn.addClickListener(e -> loadProfitAndLoss());
 
-        HorizontalLayout controls = new HorizontalLayout(plStartDate, plEndDate, generateBtn);
+        HorizontalLayout controls = new HorizontalLayout(plStartDate, plEndDate, plDepartmentFilter, generateBtn);
         controls.setAlignItems(FlexComponent.Alignment.BASELINE);
         controls.setSpacing(true);
 
@@ -299,8 +352,10 @@ public class ReportsView extends VerticalLayout {
 
         try {
             Company company = companyContextService.getCurrentCompany();
+            Department department = plDepartmentFilter.getValue(); // null means all departments
+
             ProfitAndLoss report = reportingService.generateProfitAndLoss(
-                company, startDatePicker.getValue(), endDatePicker.getValue());
+                company, startDatePicker.getValue(), endDatePicker.getValue(), department);
 
             displayProfitAndLoss(report);
         } catch (Exception e) {
@@ -315,8 +370,13 @@ public class ReportsView extends VerticalLayout {
 
         // Report header
         H3 header = new H3("Profit & Loss Statement");
-        Span dateRange = new Span("Period: " + report.startDate().format(DATE_FORMAT) +
-            " to " + report.endDate().format(DATE_FORMAT));
+        String dateRangeText = "Period: " + report.startDate().format(DATE_FORMAT) +
+            " to " + report.endDate().format(DATE_FORMAT);
+        if (report.department() != null) {
+            dateRangeText += " | Department: " + report.department().getCode() +
+                " - " + report.department().getName();
+        }
+        Span dateRange = new Span(dateRangeText);
         dateRange.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
         // Income section
@@ -520,8 +580,171 @@ public class ReportsView extends VerticalLayout {
         return grid;
     }
 
+    private VerticalLayout createBudgetVsActualTab() {
+        VerticalLayout layout = new VerticalLayout();
+        layout.setSizeFull();
+        layout.setPadding(false);
+
+        // Date pickers for Budget vs Actual
+        DatePicker bvaStartDate = new DatePicker("Start Date");
+        DatePicker bvaEndDate = new DatePicker("End Date");
+        bvaStartDate.setWidth("180px");
+        bvaEndDate.setWidth("180px");
+
+        // Budget selector
+        bvaBudgetSelect = new ComboBox<>("Budget");
+        bvaBudgetSelect.setWidth("200px");
+        bvaBudgetSelect.setPlaceholder("Select Budget");
+        bvaBudgetSelect.setItemLabelGenerator(Budget::getName);
+
+        // Department filter
+        bvaDepartmentFilter = new ComboBox<>("Department");
+        bvaDepartmentFilter.setWidth("200px");
+        bvaDepartmentFilter.setPlaceholder("All Departments");
+        bvaDepartmentFilter.setClearButtonVisible(true);
+        bvaDepartmentFilter.setItemLabelGenerator(d -> d.getCode() + " - " + d.getName());
+
+        // Sync with main date pickers
+        startDatePicker.addValueChangeListener(e -> bvaStartDate.setValue(e.getValue()));
+        endDatePicker.addValueChangeListener(e -> bvaEndDate.setValue(e.getValue()));
+        bvaStartDate.addValueChangeListener(e -> startDatePicker.setValue(e.getValue()));
+        bvaEndDate.addValueChangeListener(e -> endDatePicker.setValue(e.getValue()));
+
+        Button generateBtn = new Button("Generate Report", VaadinIcon.REFRESH.create());
+        generateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        generateBtn.addClickListener(e -> loadBudgetVsActual());
+
+        HorizontalLayout controls = new HorizontalLayout(bvaStartDate, bvaEndDate,
+            bvaBudgetSelect, bvaDepartmentFilter, generateBtn);
+        controls.setAlignItems(FlexComponent.Alignment.BASELINE);
+        controls.setSpacing(true);
+
+        budgetVsActualContent.setSizeFull();
+        budgetVsActualContent.setPadding(false);
+
+        layout.add(controls, budgetVsActualContent);
+        return layout;
+    }
+
+    private void loadBudgetVsActual() {
+        if (startDatePicker.isEmpty() || endDatePicker.isEmpty()) {
+            Notification.show("Please select a date range", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+        }
+
+        if (bvaBudgetSelect.isEmpty()) {
+            Notification.show("Please select a budget", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+        }
+
+        try {
+            Company company = companyContextService.getCurrentCompany();
+            Budget budget = bvaBudgetSelect.getValue();
+            Department department = bvaDepartmentFilter.getValue(); // null means all departments
+
+            BudgetVsActual report = reportingService.generateBudgetVsActual(
+                company, budget, startDatePicker.getValue(), endDatePicker.getValue(), department);
+
+            displayBudgetVsActual(report);
+        } catch (Exception e) {
+            Notification.show("Error generating report: " + e.getMessage(),
+                3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
+    }
+
+    private void displayBudgetVsActual(BudgetVsActual report) {
+        budgetVsActualContent.removeAll();
+
+        // Report header
+        H3 header = new H3("Budget vs Actual Report");
+        String headerText = "Budget: " + report.budget().getName() + " | Period: " +
+            report.startDate().format(DATE_FORMAT) + " to " + report.endDate().format(DATE_FORMAT);
+        if (report.department() != null) {
+            headerText += " | Department: " + report.department().getCode() +
+                " - " + report.department().getName();
+        }
+        Span subtitle = new Span(headerText);
+        subtitle.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+        // Grid for budget vs actual lines
+        Grid<BudgetVsActualLine> grid = new Grid<>();
+        grid.setSizeFull();
+        grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES, GridVariant.LUMO_COMPACT);
+
+        grid.addColumn(line -> line.account().getCode())
+            .setHeader("Code")
+            .setAutoWidth(true)
+            .setFlexGrow(0);
+
+        grid.addColumn(line -> line.account().getName())
+            .setHeader("Account")
+            .setFlexGrow(1);
+
+        grid.addColumn(line -> formatMoney(line.budgetAmount()))
+            .setHeader("Budget")
+            .setAutoWidth(true)
+            .setTextAlign(com.vaadin.flow.component.grid.ColumnTextAlign.END);
+
+        grid.addColumn(line -> formatMoney(line.actualAmount()))
+            .setHeader("Actual")
+            .setAutoWidth(true)
+            .setTextAlign(com.vaadin.flow.component.grid.ColumnTextAlign.END);
+
+        grid.addColumn(line -> formatVariance(line.variance()))
+            .setHeader("Variance")
+            .setAutoWidth(true)
+            .setTextAlign(com.vaadin.flow.component.grid.ColumnTextAlign.END);
+
+        grid.addColumn(line -> formatPercent(line.variancePercent()))
+            .setHeader("Variance %")
+            .setAutoWidth(true)
+            .setTextAlign(com.vaadin.flow.component.grid.ColumnTextAlign.END);
+
+        grid.setItems(report.lines());
+
+        // Totals row
+        HorizontalLayout totalsRow = new HorizontalLayout();
+        totalsRow.setWidthFull();
+        totalsRow.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
+        totalsRow.getStyle().set("font-weight", "bold");
+        totalsRow.getStyle().set("padding", "8px");
+        totalsRow.getStyle().set("border-top", "2px solid var(--lumo-contrast-20pct)");
+
+        Span totalLabel = new Span("Totals:");
+        Span totalBudget = new Span(formatMoney(report.totalBudget()));
+        Span totalActual = new Span(formatMoney(report.totalActual()));
+        Span totalVariance = new Span(formatVariance(report.totalVariance()));
+        Span totalVariancePercent = new Span(formatPercent(report.totalVariancePercent()));
+
+        totalBudget.getStyle().set("width", "100px").set("text-align", "right");
+        totalActual.getStyle().set("width", "100px").set("text-align", "right");
+        totalVariance.getStyle().set("width", "100px").set("text-align", "right");
+        totalVariancePercent.getStyle().set("width", "100px").set("text-align", "right");
+
+        totalsRow.add(totalLabel, totalBudget, totalActual, totalVariance, totalVariancePercent);
+
+        budgetVsActualContent.add(header, subtitle, grid, totalsRow);
+    }
+
     private String formatMoney(BigDecimal amount) {
         if (amount == null) return "0.00";
         return MONEY_FORMAT.format(amount);
+    }
+
+    private String formatVariance(BigDecimal variance) {
+        if (variance == null) return "0.00";
+        String formatted = MONEY_FORMAT.format(variance.abs());
+        if (variance.compareTo(BigDecimal.ZERO) < 0) {
+            return "(" + formatted + ")";
+        }
+        return formatted;
+    }
+
+    private String formatPercent(BigDecimal percent) {
+        if (percent == null) return "0.0%";
+        return MONEY_FORMAT.format(percent) + "%";
     }
 }

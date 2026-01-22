@@ -138,7 +138,7 @@ Per specs, Release 1 must deliver:
   - PDF automatically generated when PaymentRun is completed and attached to the run
   - Added PAYMENT_RUN to AttachmentLink.EntityType enum
 
-### Phase 7: Budgeting & Departments (COMPLETE) - Tag: 0.1.3
+### Phase 7: Budgeting & Departments (COMPLETE) - Tag: 0.1.4
 - [x] Departments (spec 12)
   - Department entity already existed in domain with code (max 5 chars), name, groupName, classification, active
   - Created DepartmentService with full CRUD, audit logging, createDefaultDepartments
@@ -160,6 +160,18 @@ Per specs, Release 1 must deliver:
   - Created KPIService with full CRUD for KPIs and KPI values, createDefaultKPIs
   - Created KPIsView with master-detail split layout, fiscal year selector, value management
   - Added KPIs navigation to MainLayout with TRENDING_UP icon
+- [x] Department Filtering in P&L Report (spec 12 acceptance criteria)
+  - Added department-filtered queries to LedgerEntryRepository (findByAccountAndDateRangeAndDepartment, sum methods)
+  - Added overloaded generateProfitAndLoss method with optional Department parameter
+  - Added department ComboBox filter to P&L tab in ReportsView
+  - P&L report now shows department filter status in subtitle when filtered
+- [x] Budget vs Actual Report (spec 12 acceptance criteria)
+  - Added BudgetVsActual and BudgetVsActualLine record types to ReportingService
+  - Added generateBudgetVsActual method that compares budget lines to actual ledger entries
+  - Supports optional department filtering for both budget and actual amounts
+  - Added new "Budget vs Actual" tab to ReportsView with budget selector, department filter
+  - Shows variance amounts and percentages with totals row
+  - Added findByFiscalYearCompanyAndDateRangeOverlap to PeriodRepository for date range queries
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
@@ -179,6 +191,7 @@ Per specs, Release 1 must deliver:
 - FiscalYear uses getLabel() not getName() - Period uses getStartDate()/getEndDate() without getName()
 - Use DateTimeFormatter for displaying period names (e.g., "MMM yyyy")
 - AccountService.findByCompany takes Company object, not companyId
+- When adding new constructor parameters to services (like ReportingService), update all unit tests to include mocks for the new dependencies
 
 ## Technical Notes
 - Build: `./mvnw compile`

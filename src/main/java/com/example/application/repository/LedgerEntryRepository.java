@@ -2,6 +2,7 @@ package com.example.application.repository;
 
 import com.example.application.domain.Account;
 import com.example.application.domain.Company;
+import com.example.application.domain.Department;
 import com.example.application.domain.LedgerEntry;
 import com.example.application.domain.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -66,4 +67,42 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             @Param("endDate") LocalDate endDate);
 
     boolean existsByTransaction(Transaction transaction);
+
+    // Department-filtered queries for departmental reporting
+    @Query("SELECT le FROM LedgerEntry le WHERE le.account = :account " +
+           "AND le.entryDate BETWEEN :startDate AND :endDate " +
+           "AND le.department = :department " +
+           "ORDER BY le.entryDate, le.id")
+    List<LedgerEntry> findByAccountAndDateRangeAndDepartment(
+            @Param("account") Account account,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("department") Department department);
+
+    @Query("SELECT COALESCE(SUM(le.amountDr), 0) FROM LedgerEntry le " +
+           "WHERE le.account = :account AND le.entryDate BETWEEN :startDate AND :endDate " +
+           "AND le.department = :department")
+    BigDecimal sumDebitsByAccountAndDateRangeAndDepartment(
+            @Param("account") Account account,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("department") Department department);
+
+    @Query("SELECT COALESCE(SUM(le.amountCr), 0) FROM LedgerEntry le " +
+           "WHERE le.account = :account AND le.entryDate BETWEEN :startDate AND :endDate " +
+           "AND le.department = :department")
+    BigDecimal sumCreditsByAccountAndDateRangeAndDepartment(
+            @Param("account") Account account,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("department") Department department);
+
+    @Query("SELECT COALESCE(SUM(le.amountDr) - SUM(le.amountCr), 0) FROM LedgerEntry le " +
+           "WHERE le.account = :account AND le.entryDate BETWEEN :startDate AND :endDate " +
+           "AND le.department = :department")
+    BigDecimal getBalanceByAccountAndDateRangeAndDepartment(
+            @Param("account") Account account,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("department") Department department);
 }
