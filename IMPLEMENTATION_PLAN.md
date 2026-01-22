@@ -15,6 +15,7 @@
 - **Phase 11 Release Readiness & Quality COMPLETE** - Tag: 0.1.9
 - **Phase 12 Invoice & Statement PDFs COMPLETE** - Tag: 0.2.0
 - **Phase 12b AR/AP Aging Reports UI COMPLETE** - Tag: 0.2.1
+- **Phase 13a Receipt Allocation UI COMPLETE** - Tag: 0.2.2
 - All 70 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
 - Database configured: H2 for development, PostgreSQL for production
@@ -317,6 +318,24 @@ Per specs, Release 1 must deliver:
   - Added exportApAgingToPdf() and exportApAgingToExcel() to ReportExportService
   - Aging buckets: Current, 1-30, 31-60, 61-90, 90+ days
   - PDF/Excel export buttons visible after generating reports
+
+### Phase 13a: Receipt Allocation UI (COMPLETE) - Tag: 0.2.2
+- [x] Receipt allocation UI in TransactionsView (spec 09)
+  - Added "Allocate" button for posted RECEIPT transactions in TransactionsView
+  - Created comprehensive allocation dialog showing:
+    - Receipt info header (amount, allocated, unallocated)
+    - Existing allocations grid with remove capability
+    - Outstanding invoices grid with allocation amount fields
+    - Auto-allocate button using suggestions (oldest first / exact match)
+    - Real-time summary of total being allocated vs remaining
+  - ReceivableAllocationService integration for:
+    - suggestAllocations() - auto-suggestion based on amount matching
+    - getUnallocatedAmount() - track remaining receipt balance
+    - allocate() / removeAllocation() - create/remove allocations
+- [x] Show payment allocations on invoice detail (spec 09)
+  - Added allocations section to SalesInvoicesView invoice detail
+  - Shows grid of allocated receipts with date, reference, amount, allocation date
+  - Only displays for issued invoices with payments (amountPaid > 0)
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead

@@ -58,6 +58,7 @@ public class SalesInvoicesView extends VerticalLayout {
     private final CompanyContextService companyContextService;
     private final InvoicePdfService invoicePdfService;
     private final EmailService emailService;
+    private final ReceivableAllocationService receivableAllocationService;
 
     private final Grid<SalesInvoice> grid = new Grid<>();
     private final TextField searchField = new TextField();
@@ -75,7 +76,8 @@ public class SalesInvoicesView extends VerticalLayout {
                              TaxCodeService taxCodeService,
                              CompanyContextService companyContextService,
                              InvoicePdfService invoicePdfService,
-                             EmailService emailService) {
+                             EmailService emailService,
+                             ReceivableAllocationService receivableAllocationService) {
         this.invoiceService = invoiceService;
         this.contactService = contactService;
         this.accountService = accountService;
@@ -84,6 +86,7 @@ public class SalesInvoicesView extends VerticalLayout {
         this.companyContextService = companyContextService;
         this.invoicePdfService = invoicePdfService;
         this.emailService = emailService;
+        this.receivableAllocationService = receivableAllocationService;
 
         addClassName("invoices-view");
         setSizeFull();
@@ -436,6 +439,39 @@ public class SalesInvoicesView extends VerticalLayout {
         addReadOnlyField(totalsForm, "Balance", "$" + invoice.getBalance().toPlainString());
 
         detailLayout.add(new H3("Totals"), totalsForm);
+
+        // Allocations section (for issued invoices with payments)
+        if (invoice.isIssued() && invoice.getAmountPaid().compareTo(BigDecimal.ZERO) > 0) {
+            List<ReceivableAllocation> allocations = receivableAllocationService.findByInvoice(invoice);
+            if (!allocations.isEmpty()) {
+                H3 allocationsHeader = new H3("Payment Allocations");
+                detailLayout.add(allocationsHeader);
+
+                Grid<ReceivableAllocation> allocGrid = new Grid<>();
+                allocGrid.setHeight("120px");
+                allocGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES, GridVariant.LUMO_COMPACT);
+
+                allocGrid.addColumn(a -> a.getReceiptTransaction().getTransactionDate().format(DATE_FORMATTER))
+                    .setHeader("Date")
+                    .setAutoWidth(true);
+
+                allocGrid.addColumn(a -> a.getReceiptTransaction().getReference() != null ?
+                    a.getReceiptTransaction().getReference() : a.getReceiptTransaction().getDescription())
+                    .setHeader("Receipt")
+                    .setFlexGrow(1);
+
+                allocGrid.addColumn(a -> "$" + a.getAmount().setScale(2).toPlainString())
+                    .setHeader("Amount")
+                    .setAutoWidth(true);
+
+                allocGrid.addColumn(a -> a.getAllocatedAt().toString().substring(0, 10))
+                    .setHeader("Allocated")
+                    .setAutoWidth(true);
+
+                allocGrid.setItems(allocations);
+                detailLayout.add(allocGrid);
+            }
+        }
 
         // Notes
         if (invoice.getNotes() != null && !invoice.getNotes().isBlank()) {

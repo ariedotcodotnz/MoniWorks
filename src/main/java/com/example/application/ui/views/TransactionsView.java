@@ -6,6 +6,7 @@ import com.example.application.domain.SavedView;
 import com.example.application.domain.Transaction.TransactionType;
 import com.example.application.domain.TransactionLine.Direction;
 import com.example.application.service.*;
+import com.example.application.service.ReceivableAllocationService.AllocationSuggestion;
 import com.example.application.ui.MainLayout;
 import com.example.application.ui.components.GridCustomizer;
 import com.vaadin.flow.component.button.Button;
@@ -28,6 +29,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.BigDecimalField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.router.PageTitle;
@@ -41,7 +43,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * View for managing transactions (Payments, Receipts, Journals).
@@ -59,6 +63,8 @@ public class TransactionsView extends VerticalLayout {
     private final CompanyContextService companyContextService;
     private final AttachmentService attachmentService;
     private final SavedViewService savedViewService;
+    private final ReceivableAllocationService receivableAllocationService;
+    private final SalesInvoiceService salesInvoiceService;
 
     private final Grid<Transaction> grid = new Grid<>();
     private final ComboBox<TransactionType> typeFilter = new ComboBox<>();
@@ -73,7 +79,9 @@ public class TransactionsView extends VerticalLayout {
                             TaxCodeService taxCodeService,
                             CompanyContextService companyContextService,
                             AttachmentService attachmentService,
-                            SavedViewService savedViewService) {
+                            SavedViewService savedViewService,
+                            ReceivableAllocationService receivableAllocationService,
+                            SalesInvoiceService salesInvoiceService) {
         this.transactionService = transactionService;
         this.postingService = postingService;
         this.accountService = accountService;
@@ -81,6 +89,8 @@ public class TransactionsView extends VerticalLayout {
         this.companyContextService = companyContextService;
         this.attachmentService = attachmentService;
         this.savedViewService = savedViewService;
+        this.receivableAllocationService = receivableAllocationService;
+        this.salesInvoiceService = salesInvoiceService;
 
         addClassName("transactions-view");
         setSizeFull();
@@ -182,6 +192,15 @@ public class TransactionsView extends VerticalLayout {
             deleteBtn.getElement().setAttribute("title", "Delete");
             actions.add(deleteBtn);
         } else {
+            // For posted receipts, add allocate button
+            if (transaction.getType() == TransactionType.RECEIPT) {
+                Button allocateBtn = new Button(VaadinIcon.CONNECT.create());
+                allocateBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_SUCCESS);
+                allocateBtn.addClickListener(e -> openAllocationDialog(transaction));
+                allocateBtn.getElement().setAttribute("title", "Allocate to Invoices");
+                actions.add(allocateBtn);
+            }
+
             Button reverseBtn = new Button(VaadinIcon.ROTATE_LEFT.create());
             reverseBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
             reverseBtn.addClickListener(e -> openReverseDialog(transaction));
@@ -825,6 +844,277 @@ public class TransactionsView extends VerticalLayout {
         dialog.add(reasonField);
         dialog.getFooter().add(cancelBtn, reverseBtn);
         dialog.open();
+    }
+
+    /**
+     * Opens the receipt allocation dialog to allocate a receipt to outstanding invoices.
+     * Shows all outstanding invoices with suggested allocations based on amount matching.
+     */
+    private void openAllocationDialog(Transaction receipt) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Allocate Receipt to Invoices");
+        dialog.setWidth("900px");
+        dialog.setHeight("600px");
+
+        Company company = companyContextService.getCurrentCompany();
+        User currentUser = companyContextService.getCurrentUser();
+
+        // Calculate receipt total amount
+        BigDecimal receiptTotal = BigDecimal.ZERO;
+        for (TransactionLine line : receipt.getLines()) {
+            if (line.isDebit()) {
+                receiptTotal = receiptTotal.add(line.getAmount());
+            }
+        }
+
+        // Get unallocated amount
+        BigDecimal unallocated = receivableAllocationService.getUnallocatedAmount(receipt);
+
+        // Get existing allocations
+        List<ReceivableAllocation> existingAllocations = receivableAllocationService.findByReceipt(receipt);
+        BigDecimal alreadyAllocated = receiptTotal.subtract(unallocated);
+
+        // Receipt info header
+        VerticalLayout headerSection = new VerticalLayout();
+        headerSection.setPadding(false);
+        headerSection.setSpacing(false);
+
+        Span receiptInfo = new Span("Receipt: " + receipt.getDescription() +
+            " dated " + receipt.getTransactionDate().format(DATE_FORMAT));
+        receiptInfo.getStyle().set("font-weight", "bold");
+
+        HorizontalLayout amountInfo = new HorizontalLayout();
+        amountInfo.setSpacing(true);
+        Span totalSpan = new Span("Total: $" + receiptTotal.setScale(2).toPlainString());
+        Span allocatedSpan = new Span("Allocated: $" + alreadyAllocated.setScale(2).toPlainString());
+        Span unallocatedSpan = new Span("Unallocated: $" + unallocated.setScale(2).toPlainString());
+        unallocatedSpan.getStyle().set("font-weight", "bold");
+        if (unallocated.compareTo(BigDecimal.ZERO) > 0) {
+            unallocatedSpan.getStyle().set("color", "var(--lumo-primary-color)");
+        }
+        amountInfo.add(totalSpan, allocatedSpan, unallocatedSpan);
+
+        headerSection.add(receiptInfo, amountInfo);
+
+        // Existing allocations section (if any)
+        VerticalLayout existingSection = new VerticalLayout();
+        existingSection.setPadding(false);
+
+        if (!existingAllocations.isEmpty()) {
+            H3 existingTitle = new H3("Current Allocations");
+            Grid<ReceivableAllocation> existingGrid = new Grid<>();
+            existingGrid.setHeight("120px");
+            existingGrid.addThemeVariants(GridVariant.LUMO_COMPACT, GridVariant.LUMO_ROW_STRIPES);
+
+            existingGrid.addColumn(a -> a.getSalesInvoice().getInvoiceNumber())
+                .setHeader("Invoice")
+                .setAutoWidth(true);
+            existingGrid.addColumn(a -> a.getSalesInvoice().getContact().getName())
+                .setHeader("Customer")
+                .setFlexGrow(1);
+            existingGrid.addColumn(a -> "$" + a.getAmount().setScale(2).toPlainString())
+                .setHeader("Allocated")
+                .setAutoWidth(true);
+            existingGrid.addColumn(a -> a.getAllocatedAt().toString().substring(0, 10))
+                .setHeader("Date")
+                .setAutoWidth(true);
+            existingGrid.addComponentColumn(allocation -> {
+                Button removeBtn = new Button(VaadinIcon.CLOSE_SMALL.create());
+                removeBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
+                removeBtn.getElement().setAttribute("title", "Remove allocation");
+                removeBtn.addClickListener(e -> {
+                    receivableAllocationService.removeAllocation(allocation, currentUser);
+                    Notification.show("Allocation removed", 2000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    dialog.close();
+                    openAllocationDialog(receipt); // Refresh dialog
+                });
+                return removeBtn;
+            }).setHeader("").setAutoWidth(true).setFlexGrow(0);
+
+            existingGrid.setItems(existingAllocations);
+            existingSection.add(existingTitle, existingGrid);
+        }
+
+        // Outstanding invoices section
+        H3 outstandingTitle = new H3("Outstanding Invoices");
+
+        // Get all outstanding invoices
+        List<SalesInvoice> outstandingInvoices = salesInvoiceService.findOutstandingByCompany(company);
+
+        // Get allocation suggestions
+        List<AllocationSuggestion> suggestions = receivableAllocationService.suggestAllocations(
+            company, null, unallocated);
+
+        // Map to track allocation amounts per invoice
+        Map<Long, BigDecimalField> allocationFields = new HashMap<>();
+
+        Grid<SalesInvoice> invoiceGrid = new Grid<>();
+        invoiceGrid.setHeight("250px");
+        invoiceGrid.addThemeVariants(GridVariant.LUMO_COMPACT, GridVariant.LUMO_ROW_STRIPES);
+
+        invoiceGrid.addColumn(SalesInvoice::getInvoiceNumber)
+            .setHeader("Invoice")
+            .setSortable(true)
+            .setAutoWidth(true);
+
+        invoiceGrid.addColumn(inv -> inv.getContact().getName())
+            .setHeader("Customer")
+            .setSortable(true)
+            .setFlexGrow(1);
+
+        invoiceGrid.addColumn(inv -> inv.getDueDate().format(DATE_FORMAT))
+            .setHeader("Due Date")
+            .setSortable(true)
+            .setAutoWidth(true);
+
+        invoiceGrid.addColumn(inv -> "$" + inv.getTotal().setScale(2).toPlainString())
+            .setHeader("Total")
+            .setAutoWidth(true);
+
+        invoiceGrid.addColumn(inv -> "$" + inv.getBalance().setScale(2).toPlainString())
+            .setHeader("Balance")
+            .setAutoWidth(true);
+
+        invoiceGrid.addComponentColumn(inv -> {
+            Span badge = new Span();
+            if (inv.isOverdue()) {
+                badge.setText("OVERDUE");
+                badge.getElement().getThemeList().add("badge error small");
+            } else {
+                badge.setText("DUE");
+                badge.getElement().getThemeList().add("badge small");
+            }
+            return badge;
+        }).setHeader("Status").setAutoWidth(true);
+
+        invoiceGrid.addComponentColumn(inv -> {
+            BigDecimalField allocField = new BigDecimalField();
+            allocField.setWidth("100px");
+            allocField.setPlaceholder("0.00");
+
+            // Pre-fill with suggestion if available
+            suggestions.stream()
+                .filter(s -> s.invoice().getId().equals(inv.getId()))
+                .findFirst()
+                .ifPresent(suggestion -> allocField.setValue(suggestion.suggestedAmount()));
+
+            allocationFields.put(inv.getId(), allocField);
+            return allocField;
+        }).setHeader("Allocate").setAutoWidth(true);
+
+        invoiceGrid.setItems(outstandingInvoices);
+
+        // Auto-allocate button
+        Button autoAllocateBtn = new Button("Auto-Allocate", VaadinIcon.MAGIC.create());
+        autoAllocateBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        autoAllocateBtn.addClickListener(e -> {
+            // Apply suggestions to fields
+            for (AllocationSuggestion suggestion : suggestions) {
+                BigDecimalField field = allocationFields.get(suggestion.invoice().getId());
+                if (field != null) {
+                    field.setValue(suggestion.suggestedAmount());
+                }
+            }
+            Notification.show("Amounts suggested based on oldest invoices first",
+                2000, Notification.Position.BOTTOM_START);
+        });
+
+        // Clear button
+        Button clearBtn = new Button("Clear All", VaadinIcon.CLOSE.create());
+        clearBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        clearBtn.addClickListener(e -> {
+            allocationFields.values().forEach(field -> field.clear());
+        });
+
+        HorizontalLayout gridActions = new HorizontalLayout(autoAllocateBtn, clearBtn);
+        gridActions.setSpacing(true);
+
+        // Summary section that updates as user enters amounts
+        Span allocationSummary = new Span();
+        updateAllocationSummary(allocationSummary, allocationFields, unallocated);
+
+        // Add listeners to update summary when allocation amounts change
+        for (BigDecimalField field : allocationFields.values()) {
+            field.addValueChangeListener(e ->
+                updateAllocationSummary(allocationSummary, allocationFields, unallocated));
+        }
+
+        // Footer buttons
+        Button allocateBtn = new Button("Save Allocations");
+        allocateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
+        allocateBtn.addClickListener(e -> {
+            try {
+                int allocationsCreated = 0;
+                for (SalesInvoice inv : outstandingInvoices) {
+                    BigDecimalField field = allocationFields.get(inv.getId());
+                    if (field != null && field.getValue() != null &&
+                        field.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                        receivableAllocationService.allocate(receipt, inv, field.getValue(), currentUser);
+                        allocationsCreated++;
+                    }
+                }
+
+                if (allocationsCreated > 0) {
+                    Notification.show(allocationsCreated + " allocation(s) created",
+                        3000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                } else {
+                    Notification.show("No allocations to save", 2000, Notification.Position.BOTTOM_START);
+                }
+
+                dialog.close();
+                loadTransactions();
+            } catch (IllegalArgumentException | IllegalStateException ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+
+        Button cancelBtn = new Button("Cancel", e -> dialog.close());
+
+        // Build layout
+        VerticalLayout content = new VerticalLayout(
+            headerSection,
+            existingSection,
+            outstandingTitle,
+            gridActions,
+            invoiceGrid,
+            allocationSummary
+        );
+        content.setPadding(false);
+        content.setSpacing(true);
+
+        dialog.add(content);
+        dialog.getFooter().add(cancelBtn, allocateBtn);
+        dialog.open();
+    }
+
+    /**
+     * Updates the allocation summary display to show total being allocated vs available.
+     */
+    private void updateAllocationSummary(Span summary, Map<Long, BigDecimalField> fields, BigDecimal available) {
+        BigDecimal totalToAllocate = BigDecimal.ZERO;
+        for (BigDecimalField field : fields.values()) {
+            if (field.getValue() != null) {
+                totalToAllocate = totalToAllocate.add(field.getValue());
+            }
+        }
+
+        BigDecimal remaining = available.subtract(totalToAllocate);
+        String text = "Allocating: $" + totalToAllocate.setScale(2).toPlainString() +
+            " | Remaining: $" + remaining.setScale(2).toPlainString();
+
+        summary.setText(text);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+            summary.getStyle().set("color", "var(--lumo-error-text-color)");
+            summary.setText(text + " (over-allocated!)");
+        } else if (remaining.compareTo(BigDecimal.ZERO) == 0) {
+            summary.getStyle().set("color", "var(--lumo-success-text-color)");
+            summary.setText(text + " (fully allocated)");
+        } else {
+            summary.getStyle().set("color", "var(--lumo-body-text-color)");
+        }
     }
 
     /**
