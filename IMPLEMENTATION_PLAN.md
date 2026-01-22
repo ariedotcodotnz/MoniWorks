@@ -26,10 +26,11 @@
 - **Phase 18 Report Drilldown & Allocation Rules UI COMPLETE** - Tag: 0.3.0
 - **Phase 19 Payment Runs UI COMPLETE** - Tag: 0.3.1
 - **Phase 20 User Invitation Workflow COMPLETE** - Tag: 0.3.2
-- All 88 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, ApplicationTest: 1)
+- **Phase 21 Credit Notes for Invoices COMPLETE** - Tag: 0.3.3
+- All 99 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
 - All repository interfaces created (41 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService, InvitationService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView
@@ -584,6 +585,44 @@ Per specs, Release 1 must deliver:
   - Accept invitation for new and existing users
   - Cancel and resend invitation workflows
   - URL generation
+
+### Phase 21: Credit Notes for Invoices (COMPLETE) - Tag: 0.3.3
+- [x] Credit Note entity support (spec 09)
+  - Added InvoiceType enum (INVOICE, CREDIT_NOTE) to SalesInvoice
+  - Added type field and originalInvoice reference to SalesInvoice
+  - Created V18__credit_notes.sql migration adding invoice_type and original_invoice_id columns
+  - Added helper methods: isCreditNote(), isInvoice() to SalesInvoice entity
+- [x] Credit Note service methods (spec 09)
+  - Added generateCreditNoteNumber() using CN-{originalNumber} pattern with suffix for multiples
+  - Added createCreditNote() to create draft credit note against issued invoice
+  - Supports full credit (copies all lines) or partial credit (empty draft for manual entry)
+  - Added issueCreditNote() that posts reversed ledger entries:
+    - Credit AR control account (reduces receivable)
+    - Debit income accounts (reduces income)
+    - Debit GST collected (reduces tax liability)
+  - Validates credit note amount doesn't exceed invoice remaining balance
+  - Credit note total automatically reduces original invoice balance
+  - Added findCreditNotesForInvoice() to find all credit notes for an invoice
+  - Added findByOriginalInvoice() to SalesInvoiceRepository
+- [x] Credit Note UI (spec 09)
+  - Added "Credit Note" button on issued invoices in SalesInvoicesView
+  - Create Credit Note dialog with full/partial credit options
+  - Invoice detail shows "CREDIT NOTE" type badge for credit notes
+  - Shows link to original invoice for credit notes
+  - Shows list of issued credit notes for invoices
+  - Issue button correctly calls issueCreditNote() for credit notes
+- [x] SalesInvoiceServiceTest with 11 unit tests covering:
+  - Create full credit note success
+  - Create partial credit note (empty draft)
+  - Cannot create credit note against draft invoice
+  - Cannot create credit note against another credit note
+  - Second credit note gets incremented suffix
+  - Issue credit note posts reversed entries
+  - Cannot issue credit note exceeding invoice balance
+  - Cannot issue regular invoice as credit note
+  - Cannot issue already-issued credit note
+  - Cannot issue credit note with no lines
+  - Find credit notes for invoice
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead

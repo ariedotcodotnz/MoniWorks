@@ -11,9 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a sales invoice issued to a customer.
+ * Represents a sales invoice or credit note issued to a customer.
  * Invoices follow a workflow: DRAFT → ISSUED → VOID
  * Issuing an invoice creates ledger entries (AR debit, Income credit, Tax).
+ * Credit notes are created against original invoices with reversed entries.
  * Voiding is done via reversal/credit note patterns.
  */
 @Entity
@@ -26,6 +27,11 @@ public class SalesInvoice {
         DRAFT,   // Can be edited
         ISSUED,  // Posted to ledger, immutable
         VOID     // Reversed/cancelled
+    }
+
+    public enum InvoiceType {
+        INVOICE,     // Standard sales invoice
+        CREDIT_NOTE  // Credit note/credit memo
     }
 
     @Id
@@ -59,6 +65,16 @@ public class SalesInvoice {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private InvoiceStatus status = InvoiceStatus.DRAFT;
+
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "invoice_type", nullable = false, length = 15)
+    private InvoiceType type = InvoiceType.INVOICE;
+
+    // For credit notes, reference to the original invoice being credited
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_invoice_id")
+    private SalesInvoice originalInvoice;
 
     @Size(max = 3)
     @Column(length = 3)
@@ -155,6 +171,14 @@ public class SalesInvoice {
         return status == InvoiceStatus.VOID;
     }
 
+    public boolean isCreditNote() {
+        return type == InvoiceType.CREDIT_NOTE;
+    }
+
+    public boolean isInvoice() {
+        return type == InvoiceType.INVOICE;
+    }
+
     /**
      * Recalculates totals from line items.
      * Should be called after modifying lines.
@@ -245,6 +269,22 @@ public class SalesInvoice {
 
     public void setStatus(InvoiceStatus status) {
         this.status = status;
+    }
+
+    public InvoiceType getType() {
+        return type;
+    }
+
+    public void setType(InvoiceType type) {
+        this.type = type;
+    }
+
+    public SalesInvoice getOriginalInvoice() {
+        return originalInvoice;
+    }
+
+    public void setOriginalInvoice(SalesInvoice originalInvoice) {
+        this.originalInvoice = originalInvoice;
     }
 
     public String getCurrency() {

@@ -2,6 +2,7 @@ package com.example.application.service;
 
 import com.example.application.domain.*;
 import com.example.application.domain.SalesInvoice.InvoiceStatus;
+import com.example.application.domain.SalesInvoice.InvoiceType;
 import com.example.application.repository.SalesInvoiceLineRepository;
 import com.example.application.repository.SalesInvoiceRepository;
 import com.example.application.repository.TaxCodeRepository;
@@ -15,16 +16,22 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service for managing sales invoices (A/R).
+ * Service for managing sales invoices and credit notes (A/R).
  *
  * Key workflows:
  * 1. Create draft invoice → Add lines → Issue (post to ledger)
  * 2. Void invoice (reversal) for issued invoices
+ * 3. Create credit note against an issued invoice
  *
  * Issuing an invoice creates ledger entries:
  * - Debit AR control account (Asset)
  * - Credit income accounts (per line)
  * - Credit GST collected account (if applicable)
+ *
+ * Issuing a credit note creates REVERSED entries:
+ * - Credit AR control account (reduces receivable)
+ * - Debit income accounts (reduces income)
+ * - Debit GST collected (reduces tax liability)
  */
 @Service
 @Transactional
@@ -102,7 +109,9 @@ public class SalesInvoiceService {
         int maxNumber = 0;
         for (String num : existingNumbers) {
             try {
-                int parsed = Integer.parseInt(num);
+                // Remove CN- prefix if present for credit notes
+                String cleanNum = num.startsWith("CN-") ? num.substring(3) : num;
+                int parsed = Integer.parseInt(cleanNum);
                 if (parsed > maxNumber) {
                     maxNumber = parsed;
                 }
@@ -111,6 +120,22 @@ public class SalesInvoiceService {
             }
         }
         return String.valueOf(maxNumber + 1);
+    }
+
+    /**
+     * Generates a credit note number based on the original invoice number.
+     * Uses CN-{originalNumber} pattern.
+     */
+    public String generateCreditNoteNumber(Company company, SalesInvoice originalInvoice) {
+        String baseNumber = "CN-" + originalInvoice.getInvoiceNumber();
+        // Check if this number exists, if so append a suffix
+        String finalNumber = baseNumber;
+        int suffix = 1;
+        while (invoiceRepository.existsByCompanyAndInvoiceNumber(company, finalNumber)) {
+            finalNumber = baseNumber + "-" + suffix;
+            suffix++;
+        }
+        return finalNumber;
     }
 
     /**
@@ -347,6 +372,183 @@ public class SalesInvoiceService {
             (reason != null ? ": " + reason : ""));
 
         return invoice;
+    }
+
+    /**
+     * Creates a draft credit note against an issued invoice.
+     * Credit notes can be for the full amount or partial (user can adjust lines).
+     *
+     * @param originalInvoice The invoice to credit
+     * @param createdBy The user creating the credit note
+     * @param fullCredit If true, copies all lines from the original invoice
+     * @return The draft credit note
+     */
+    public SalesInvoice createCreditNote(SalesInvoice originalInvoice, User createdBy, boolean fullCredit) {
+        if (!originalInvoice.isIssued()) {
+            throw new IllegalStateException("Can only create credit notes against issued invoices");
+        }
+
+        if (originalInvoice.isCreditNote()) {
+            throw new IllegalStateException("Cannot create a credit note against another credit note");
+        }
+
+        Company company = originalInvoice.getCompany();
+        String creditNoteNumber = generateCreditNoteNumber(company, originalInvoice);
+
+        SalesInvoice creditNote = new SalesInvoice();
+        creditNote.setCompany(company);
+        creditNote.setInvoiceNumber(creditNoteNumber);
+        creditNote.setContact(originalInvoice.getContact());
+        creditNote.setIssueDate(LocalDate.now());
+        creditNote.setDueDate(LocalDate.now()); // Credit notes are due immediately
+        creditNote.setType(InvoiceType.CREDIT_NOTE);
+        creditNote.setOriginalInvoice(originalInvoice);
+        creditNote.setCreatedBy(createdBy);
+        creditNote.setCurrency(originalInvoice.getCurrency());
+        creditNote.setReference("Credit for invoice " + originalInvoice.getInvoiceNumber());
+
+        creditNote = invoiceRepository.save(creditNote);
+
+        // If full credit, copy all lines from the original invoice
+        if (fullCredit) {
+            for (SalesInvoiceLine originalLine : originalInvoice.getLines()) {
+                SalesInvoiceLine creditLine = new SalesInvoiceLine(
+                    originalLine.getAccount(),
+                    originalLine.getQuantity(),
+                    originalLine.getUnitPrice()
+                );
+                creditLine.setProduct(originalLine.getProduct());
+                creditLine.setDescription(originalLine.getDescription());
+                creditLine.setTaxCode(originalLine.getTaxCode());
+                creditLine.setTaxRate(originalLine.getTaxRate());
+                creditLine.setDepartment(originalLine.getDepartment());
+                creditLine.calculateTotals();
+                creditNote.addLine(creditLine);
+            }
+            creditNote.recalculateTotals();
+            creditNote = invoiceRepository.save(creditNote);
+        }
+
+        auditService.logEvent(company, createdBy, "CREDIT_NOTE_CREATED", "SalesInvoice", creditNote.getId(),
+            "Created credit note " + creditNoteNumber + " against invoice " + originalInvoice.getInvoiceNumber());
+
+        return creditNote;
+    }
+
+    /**
+     * Issues a credit note, posting it to the ledger with reversed entries.
+     * Creates a JOURNAL transaction with:
+     * - Credit: AR control account for total amount (reduces receivable)
+     * - Debit: Income accounts for each line's net amount (reduces income)
+     * - Debit: GST collected for total tax (reduces tax liability)
+     */
+    public SalesInvoice issueCreditNote(SalesInvoice creditNote, User actor) {
+        if (!creditNote.isCreditNote()) {
+            throw new IllegalStateException("This is not a credit note");
+        }
+
+        if (!creditNote.isDraft()) {
+            throw new IllegalStateException("Credit note is not in draft status");
+        }
+
+        if (creditNote.getLines().isEmpty()) {
+            throw new IllegalStateException("Credit note has no lines");
+        }
+
+        Company company = creditNote.getCompany();
+        SalesInvoice originalInvoice = creditNote.getOriginalInvoice();
+
+        // Validate credit note amount doesn't exceed remaining balance on original invoice
+        BigDecimal remainingBalance = originalInvoice.getBalance();
+        if (creditNote.getTotal().compareTo(remainingBalance) > 0) {
+            throw new IllegalStateException(
+                "Credit note amount ($" + creditNote.getTotal() +
+                ") exceeds invoice remaining balance ($" + remainingBalance + ")");
+        }
+
+        // Find AR control account
+        Account arAccount = accountService.findByCompanyAndCode(company, AR_ACCOUNT_CODE)
+            .orElseThrow(() -> new IllegalStateException(
+                "AR control account not found: " + AR_ACCOUNT_CODE));
+
+        // Create the posting transaction - REVERSED from normal invoice
+        String description = "Credit Note " + creditNote.getInvoiceNumber() + " - " +
+            creditNote.getContact().getName();
+        Transaction transaction = transactionService.createTransaction(
+            company,
+            Transaction.TransactionType.JOURNAL,
+            creditNote.getIssueDate(),
+            description,
+            actor
+        );
+        transaction.setReference(creditNote.getInvoiceNumber());
+
+        // CREDIT AR for the total amount (reduces receivable)
+        TransactionLine arLine = new TransactionLine(
+            arAccount,
+            creditNote.getTotal(),
+            TransactionLine.Direction.CREDIT  // Reversed from invoice
+        );
+        arLine.setMemo("CR for credit note " + creditNote.getInvoiceNumber());
+        transaction.addLine(arLine);
+
+        // DEBIT income accounts for each line (reduces income)
+        for (SalesInvoiceLine creditLine : creditNote.getLines()) {
+            TransactionLine incomeLine = new TransactionLine(
+                creditLine.getAccount(),
+                creditLine.getLineTotal(),
+                TransactionLine.Direction.DEBIT  // Reversed from invoice
+            );
+            incomeLine.setTaxCode(creditLine.getTaxCode());
+            incomeLine.setDepartment(creditLine.getDepartment());
+            incomeLine.setMemo(creditLine.getDescription());
+            transaction.addLine(incomeLine);
+        }
+
+        // DEBIT GST collected if there's any tax (reduces tax liability)
+        if (creditNote.getTaxTotal().compareTo(BigDecimal.ZERO) > 0) {
+            Account gstAccount = accountService.findByCompanyAndCode(company, GST_COLLECTED_CODE)
+                .orElseThrow(() -> new IllegalStateException(
+                    "GST collected account not found: " + GST_COLLECTED_CODE));
+
+            TransactionLine gstLine = new TransactionLine(
+                gstAccount,
+                creditNote.getTaxTotal(),
+                TransactionLine.Direction.DEBIT  // Reversed from invoice
+            );
+            gstLine.setMemo("GST on credit note " + creditNote.getInvoiceNumber());
+            transaction.addLine(gstLine);
+        }
+
+        transactionService.save(transaction);
+
+        // Post the transaction to create ledger entries
+        transaction = postingService.postTransaction(transaction, actor);
+
+        // Update credit note status
+        creditNote.setStatus(InvoiceStatus.ISSUED);
+        creditNote.setIssuedAt(Instant.now());
+        creditNote.setPostedTransaction(transaction);
+        creditNote = invoiceRepository.save(creditNote);
+
+        // Update the original invoice's paid amount (credit note reduces balance)
+        BigDecimal newAmountPaid = originalInvoice.getAmountPaid().add(creditNote.getTotal());
+        originalInvoice.setAmountPaid(newAmountPaid);
+        invoiceRepository.save(originalInvoice);
+
+        auditService.logEvent(company, actor, "CREDIT_NOTE_ISSUED", "SalesInvoice", creditNote.getId(),
+            "Issued credit note " + creditNote.getInvoiceNumber() + " for $" + creditNote.getTotal() +
+            " against invoice " + originalInvoice.getInvoiceNumber());
+
+        return creditNote;
+    }
+
+    /**
+     * Finds all credit notes for a specific invoice.
+     */
+    @Transactional(readOnly = true)
+    public List<SalesInvoice> findCreditNotesForInvoice(SalesInvoice originalInvoice) {
+        return invoiceRepository.findByOriginalInvoice(originalInvoice);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.example.application.ui.views;
 import com.example.application.domain.*;
 import com.example.application.domain.Contact.ContactType;
 import com.example.application.domain.SalesInvoice.InvoiceStatus;
+import com.example.application.domain.SalesInvoice.InvoiceType;
 import com.example.application.domain.SavedView.EntityType;
 import com.example.application.service.*;
 import com.example.application.ui.MainLayout;
@@ -317,8 +318,19 @@ public class SalesInvoicesView extends VerticalLayout {
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.CENTER);
 
-        H3 invoiceLabel = new H3("Invoice #" + invoice.getInvoiceNumber());
-        header.add(invoiceLabel, createStatusBadge(invoice));
+        String headerText = invoice.isCreditNote()
+            ? "Credit Note #" + invoice.getInvoiceNumber()
+            : "Invoice #" + invoice.getInvoiceNumber();
+        H3 invoiceLabel = new H3(headerText);
+
+        // Show type badge for credit notes
+        if (invoice.isCreditNote()) {
+            Span typeBadge = new Span("CREDIT NOTE");
+            typeBadge.getElement().getThemeList().add("badge contrast");
+            header.add(invoiceLabel, typeBadge, createStatusBadge(invoice));
+        } else {
+            header.add(invoiceLabel, createStatusBadge(invoice));
+        }
 
         // Action buttons
         HorizontalLayout actions = new HorizontalLayout();
@@ -340,7 +352,14 @@ public class SalesInvoicesView extends VerticalLayout {
             actions.add(editButton, addLineButton, issueButton);
         }
 
-        if (invoice.isIssued() && !invoice.isPaid()) {
+        if (invoice.isIssued() && !invoice.isPaid() && invoice.isInvoice()) {
+            // Credit Note button (only for invoices, not credit notes)
+            Button creditNoteButton = new Button("Credit Note", VaadinIcon.FILE_REMOVE.create());
+            creditNoteButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+            creditNoteButton.addClickListener(e -> openCreateCreditNoteDialog(invoice));
+            actions.add(creditNoteButton);
+
+            // Void button
             Button voidButton = new Button("Void", VaadinIcon.BAN.create());
             voidButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
             voidButton.addClickListener(e -> confirmVoidInvoice(invoice));
@@ -405,6 +424,23 @@ public class SalesInvoicesView extends VerticalLayout {
         addReadOnlyField(infoForm, "Issue Date", invoice.getIssueDate().format(DATE_FORMATTER));
         addReadOnlyField(infoForm, "Due Date", invoice.getDueDate().format(DATE_FORMATTER));
         addReadOnlyField(infoForm, "Reference", invoice.getReference());
+
+        // Show link to original invoice for credit notes
+        if (invoice.isCreditNote() && invoice.getOriginalInvoice() != null) {
+            addReadOnlyField(infoForm, "Credits Invoice", "#" + invoice.getOriginalInvoice().getInvoiceNumber());
+        }
+
+        // Show credit notes issued against this invoice
+        if (invoice.isInvoice() && invoice.isIssued()) {
+            List<SalesInvoice> creditNotes = invoiceService.findCreditNotesForInvoice(invoice);
+            if (!creditNotes.isEmpty()) {
+                String creditNotesText = creditNotes.stream()
+                    .map(SalesInvoice::getInvoiceNumber)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("");
+                addReadOnlyField(infoForm, "Credit Notes", creditNotesText);
+            }
+        }
 
         detailLayout.add(infoForm);
 
@@ -826,24 +862,33 @@ public class SalesInvoicesView extends VerticalLayout {
 
     private void issueInvoice(SalesInvoice invoice) {
         if (invoice.getLines().isEmpty()) {
-            Notification.show("Cannot issue invoice with no lines", 3000, Notification.Position.MIDDLE)
+            String type = invoice.isCreditNote() ? "credit note" : "invoice";
+            Notification.show("Cannot issue " + type + " with no lines", 3000, Notification.Position.MIDDLE)
                 .addThemeVariants(NotificationVariant.LUMO_ERROR);
             return;
         }
 
         ConfirmDialog confirm = new ConfirmDialog();
-        confirm.setHeader("Issue Invoice?");
-        confirm.setText("Issue invoice #" + invoice.getInvoiceNumber() + " for $" +
-            invoice.getTotal().toPlainString() + "? This will post the invoice to the ledger.");
+        boolean isCreditNote = invoice.isCreditNote();
+        String typeLabel = isCreditNote ? "Credit Note" : "Invoice";
+
+        confirm.setHeader("Issue " + typeLabel + "?");
+        confirm.setText("Issue " + typeLabel.toLowerCase() + " #" + invoice.getInvoiceNumber() + " for $" +
+            invoice.getTotal().toPlainString() + "? This will post it to the ledger.");
         confirm.setCancelable(true);
         confirm.setConfirmText("Issue");
         confirm.setConfirmButtonTheme("primary success");
 
         confirm.addConfirmListener(e -> {
             try {
-                SalesInvoice issued = invoiceService.issueInvoice(invoice, null);
+                SalesInvoice issued;
+                if (isCreditNote) {
+                    issued = invoiceService.issueCreditNote(invoice, companyContextService.getCurrentUser());
+                } else {
+                    issued = invoiceService.issueInvoice(invoice, companyContextService.getCurrentUser());
+                }
 
-                Notification.show("Invoice " + issued.getInvoiceNumber() + " issued successfully",
+                Notification.show(typeLabel + " " + issued.getInvoiceNumber() + " issued successfully",
                         3000, Notification.Position.BOTTOM_START)
                     .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
 
@@ -851,7 +896,7 @@ public class SalesInvoicesView extends VerticalLayout {
                 showInvoiceDetail(issued);
 
             } catch (Exception ex) {
-                Notification.show("Error issuing invoice: " + ex.getMessage(),
+                Notification.show("Error issuing " + typeLabel.toLowerCase() + ": " + ex.getMessage(),
                         5000, Notification.Position.MIDDLE)
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
             }
@@ -957,5 +1002,64 @@ public class SalesInvoicesView extends VerticalLayout {
     private String formatCurrency(java.math.BigDecimal amount) {
         if (amount == null) return "$0.00";
         return String.format("$%,.2f", amount);
+    }
+
+    private void openCreateCreditNoteDialog(SalesInvoice invoice) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Create Credit Note");
+        dialog.setWidth("600px");
+
+        FormLayout form = new FormLayout();
+        form.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1));
+
+        // Display original invoice info
+        TextField invoiceField = new TextField("Original Invoice");
+        invoiceField.setValue("#" + invoice.getInvoiceNumber() + " - " + formatCurrency(invoice.getTotal()));
+        invoiceField.setReadOnly(true);
+        invoiceField.setWidthFull();
+
+        TextField balanceField = new TextField("Outstanding Balance");
+        balanceField.setValue(formatCurrency(invoice.getBalance()));
+        balanceField.setReadOnly(true);
+        balanceField.setWidthFull();
+
+        // Credit note options
+        ComboBox<String> creditTypeCombo = new ComboBox<>("Credit Type");
+        creditTypeCombo.setItems("Full Credit", "Partial Credit");
+        creditTypeCombo.setValue("Full Credit");
+        creditTypeCombo.setRequired(true);
+        creditTypeCombo.setWidthFull();
+        creditTypeCombo.setHelperText("Full credit copies all lines. Partial credit creates an empty draft for manual line entry.");
+
+        form.add(invoiceField, balanceField, creditTypeCombo);
+
+        Button createButton = new Button("Create Credit Note");
+        createButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        createButton.addClickListener(e -> {
+            try {
+                boolean fullCredit = "Full Credit".equals(creditTypeCombo.getValue());
+                User currentUser = companyContextService.getCurrentUser();
+
+                SalesInvoice creditNote = invoiceService.createCreditNote(invoice, currentUser, fullCredit);
+
+                Notification.show("Credit Note " + creditNote.getInvoiceNumber() + " created",
+                        3000, Notification.Position.BOTTOM_START)
+                    .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+                dialog.close();
+                loadInvoices();
+                grid.select(creditNote);
+
+            } catch (Exception ex) {
+                Notification.show("Error: " + ex.getMessage(), 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+
+        Button cancelButton = new Button("Cancel", e -> dialog.close());
+
+        dialog.add(form);
+        dialog.getFooter().add(cancelButton, createButton);
+        dialog.open();
     }
 }

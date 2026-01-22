@@ -81,4 +81,17 @@ public interface SalesInvoiceRepository extends JpaRepository<SalesInvoice, Long
     // Count by status for dashboard
     @Query("SELECT COUNT(i) FROM SalesInvoice i WHERE i.company = :company AND i.status = :status")
     long countByCompanyAndStatus(@Param("company") Company company, @Param("status") InvoiceStatus status);
+
+    // Find credit notes for an original invoice
+    List<SalesInvoice> findByOriginalInvoice(SalesInvoice originalInvoice);
+
+    // Find only invoices (not credit notes) for a company
+    @Query("SELECT i FROM SalesInvoice i WHERE i.company = :company AND i.type = 'INVOICE' " +
+           "ORDER BY i.issueDate DESC, i.invoiceNumber DESC")
+    List<SalesInvoice> findInvoicesByCompany(@Param("company") Company company);
+
+    // Find only credit notes for a company
+    @Query("SELECT i FROM SalesInvoice i WHERE i.company = :company AND i.type = 'CREDIT_NOTE' " +
+           "ORDER BY i.issueDate DESC, i.invoiceNumber DESC")
+    List<SalesInvoice> findCreditNotesByCompany(@Param("company") Company company);
 }
