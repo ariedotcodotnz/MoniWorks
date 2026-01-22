@@ -2,10 +2,7 @@ package com.example.application.service;
 
 import com.example.application.domain.Account;
 import com.example.application.domain.Company;
-import com.example.application.repository.AccountRepository;
-import com.example.application.repository.BudgetLineRepository;
-import com.example.application.repository.LedgerEntryRepository;
-import com.example.application.repository.PeriodRepository;
+import com.example.application.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +38,12 @@ class ReportingServiceTest {
     @Mock
     private PeriodRepository periodRepository;
 
+    @Mock
+    private SalesInvoiceRepository salesInvoiceRepository;
+
+    @Mock
+    private SupplierBillRepository supplierBillRepository;
+
     private ReportingService reportingService;
 
     private Company company;
@@ -54,7 +57,7 @@ class ReportingServiceTest {
     @BeforeEach
     void setUp() {
         reportingService = new ReportingService(accountRepository, ledgerEntryRepository,
-            budgetLineRepository, periodRepository);
+            budgetLineRepository, periodRepository, salesInvoiceRepository, supplierBillRepository);
 
         company = new Company("Test Company", "NZ", "NZD", LocalDate.of(2024, 4, 1));
         company.setId(1L);

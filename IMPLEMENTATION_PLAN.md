@@ -12,12 +12,14 @@
 - **Phase 8 Recurring Transactions COMPLETE** - Tag: 0.1.5
 - **Phase 9 Report Export & Search COMPLETE** - Tag: 0.1.7
 - **Phase 10 Email & Grid Customization COMPLETE** - Tag: 0.1.8
+- **Phase 11 Release Readiness & Quality COMPLETE** - Tag: 0.1.9
+- **Phase 12 Invoice & Statement PDFs COMPLETE** - Tag: 0.2.0
 - All 70 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql
 - All repository interfaces created (38 repositories)
-- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService
+- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
@@ -261,6 +263,57 @@ Per specs, Release 1 must deliver:
   - Added column keys and resize support to TransactionsView grid
   - CompanyContextService.getCurrentUser() method added for user context
 
+### Phase 11: Release Readiness & Quality (COMPLETE) - Tag: 0.1.9
+- [x] Removed all TODO markers from codebase
+  - TransactionsView: 3 TODO markers fixed (posting and attachment user injection)
+  - GstReturnsView: 1 TODO marker fixed (tax return generation)
+  - SalesInvoicesView: 1 TODO marker fixed (invoice creation)
+  - SupplierBillsView: 1 TODO marker fixed (bill creation)
+  - Now using companyContextService.getCurrentUser() for proper user attribution
+- [x] Added spec 16 (Release Readiness and Quality Gates) documentation
+  - Defines Definition of Done (DoD) criteria
+  - Quality gates for no TODO/FIXME/XXX markers
+  - Test coverage requirements (70% overall, 80% critical)
+  - Validation commands and release workflow
+
+### Phase 12: Invoice & Statement PDFs (COMPLETE) - Tag: 0.2.0
+- [x] Invoice PDF generation (spec 09, spec 13)
+  - Created InvoicePdfService for professional invoice rendering
+  - Company header with invoice status (PAID/OVERDUE/ISSUED)
+  - Invoice details section (number, dates, reference)
+  - Bill To section with customer info
+  - Line items table with #, description, qty, price, tax, amount
+  - Totals section with subtotal, tax breakdown by code, and total
+  - Payment information box with due date
+  - PAID stamp for fully paid invoices
+  - Notes section and footer
+- [x] Add PDF export to SalesInvoicesView
+  - Export PDF button for issued invoices (downloads PDF)
+  - Email Invoice button (uses EmailService.sendInvoice with dialog)
+  - Email dialog with pre-filled recipient, subject, and message
+  - StreamResource-based download functionality
+- [x] Customer statement generation (spec 09)
+  - Created StatementService with open-item statement generation
+  - StatementData record with aging buckets (Current, 1-30, 31-60, 61-90, 90+ days)
+  - StatementLine record for each outstanding invoice
+  - generateStatementData() for statement data
+  - generateStatementPdf() for PDF output
+  - Aging summary table with colored values for overdue
+  - Transaction list with overdue day indicators
+  - Payment information box with total due
+- [x] AR/AP Aging reports (spec 13)
+  - Added generateArAging() to ReportingService
+  - Added generateApAging() to ReportingService
+  - ArAgingReport record with customer summaries and bucket totals
+  - ApAgingReport record with supplier summaries and bucket totals
+  - Categorizes by aging buckets: Current, 1-30, 31-60, 61-90, 90+ days
+  - Updated ReportingServiceTest with new constructor parameters
+  - Statement PDF generation
+- [ ] AR/AP aging reports (spec 13)
+  - Add AR aging report to ReportingService (30/60/90+ day buckets)
+  - Add AP aging report to ReportingService
+  - Add to ReportsView with PDF/Excel export
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -295,6 +348,9 @@ Per specs, Release 1 must deliver:
 - Vaadin TextField uses setAutoselect(true) instead of selectAll() method
 - GridCustomizer requires column keys (.setKey()) to be set on grid columns for customization to work
 - CompanyContextService.getCurrentUser() uses SecurityContextHolder to get authenticated user
+- When adding new constructor parameters to services (like ReportingService AR/AP repos), must update unit tests
+- Statement generation uses findOutstandingByCompanyAndContact which filters by balance > 0 already
+- AR/AP Aging reports categorize by days overdue using ChronoUnit.DAYS.between(dueDate, asOfDate)
 
 ## Technical Notes
 - Build: `./mvnw compile`

@@ -27,10 +27,13 @@ import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.BigDecimalField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.security.PermitAll;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -53,6 +56,8 @@ public class SalesInvoicesView extends VerticalLayout {
     private final ProductService productService;
     private final TaxCodeService taxCodeService;
     private final CompanyContextService companyContextService;
+    private final InvoicePdfService invoicePdfService;
+    private final EmailService emailService;
 
     private final Grid<SalesInvoice> grid = new Grid<>();
     private final TextField searchField = new TextField();
@@ -68,13 +73,17 @@ public class SalesInvoicesView extends VerticalLayout {
                              AccountService accountService,
                              ProductService productService,
                              TaxCodeService taxCodeService,
-                             CompanyContextService companyContextService) {
+                             CompanyContextService companyContextService,
+                             InvoicePdfService invoicePdfService,
+                             EmailService emailService) {
         this.invoiceService = invoiceService;
         this.contactService = contactService;
         this.accountService = accountService;
         this.productService = productService;
         this.taxCodeService = taxCodeService;
         this.companyContextService = companyContextService;
+        this.invoicePdfService = invoicePdfService;
+        this.emailService = emailService;
 
         addClassName("invoices-view");
         setSizeFull();
@@ -300,6 +309,46 @@ public class SalesInvoicesView extends VerticalLayout {
             voidButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
             voidButton.addClickListener(e -> confirmVoidInvoice(invoice));
             actions.add(voidButton);
+        }
+
+        // PDF export and email buttons for issued invoices
+        if (invoice.isIssued()) {
+            // PDF download button
+            Button pdfButton = new Button("Export PDF", VaadinIcon.DOWNLOAD.create());
+            pdfButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+            pdfButton.addClickListener(e -> {
+                try {
+                    byte[] pdfContent = invoicePdfService.generateInvoicePdf(invoice);
+                    String filename = "Invoice_" + invoice.getInvoiceNumber() + ".pdf";
+
+                    StreamResource resource = new StreamResource(filename,
+                        () -> new ByteArrayInputStream(pdfContent));
+                    resource.setContentType("application/pdf");
+                    resource.setCacheTime(0);
+
+                    Anchor downloadLink = new Anchor(resource, "");
+                    downloadLink.getElement().setAttribute("download", true);
+                    downloadLink.getElement().getStyle().set("display", "none");
+                    add(downloadLink);
+                    downloadLink.getElement().executeJs("this.click()");
+                    downloadLink.getElement().executeJs("setTimeout(() => this.remove(), 100)");
+
+                    Notification.show("PDF generated successfully", 3000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                } catch (Exception ex) {
+                    Notification.show("Failed to generate PDF: " + ex.getMessage(), 3000, Notification.Position.MIDDLE)
+                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                }
+            });
+            actions.add(pdfButton);
+
+            // Email button
+            if (invoice.getContact().getEmail() != null && !invoice.getContact().getEmail().isBlank()) {
+                Button emailButton = new Button("Email", VaadinIcon.ENVELOPE.create());
+                emailButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+                emailButton.addClickListener(e -> emailInvoice(invoice));
+                actions.add(emailButton);
+            }
         }
 
         HorizontalLayout spacer = new HorizontalLayout();
@@ -775,5 +824,69 @@ public class SalesInvoicesView extends VerticalLayout {
         });
 
         confirm.open();
+    }
+
+    private void emailInvoice(SalesInvoice invoice) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Email Invoice");
+        dialog.setWidth("500px");
+
+        FormLayout form = new FormLayout();
+        form.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1));
+
+        TextField toField = new TextField("To");
+        toField.setValue(invoice.getContact().getEmail());
+        toField.setWidthFull();
+
+        TextField subjectField = new TextField("Subject");
+        subjectField.setValue("Invoice " + invoice.getInvoiceNumber() + " from " +
+            invoice.getCompany().getName());
+        subjectField.setWidthFull();
+
+        TextArea messageArea = new TextArea("Message");
+        messageArea.setValue("Please find attached invoice " + invoice.getInvoiceNumber() +
+            " for " + formatCurrency(invoice.getTotal()) + ".\n\n" +
+            "Payment is due by " + invoice.getDueDate().format(DATE_FORMATTER) + ".\n\n" +
+            "Thank you for your business.");
+        messageArea.setWidthFull();
+        messageArea.setHeight("150px");
+
+        form.add(toField, subjectField, messageArea);
+
+        Button sendButton = new Button("Send", VaadinIcon.ENVELOPE.create());
+        sendButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        sendButton.addClickListener(e -> {
+            try {
+                byte[] pdfContent = invoicePdfService.generateInvoicePdf(invoice);
+                User currentUser = companyContextService.getCurrentUser();
+
+                EmailService.EmailResult result = emailService.sendInvoice(
+                    invoice, pdfContent, currentUser);
+
+                if (result.success()) {
+                    Notification.show("Invoice emailed successfully", 3000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    dialog.close();
+                } else {
+                    Notification.show("Email queued: " + result.message(), 3000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    dialog.close();
+                }
+            } catch (Exception ex) {
+                Notification.show("Failed to send email: " + ex.getMessage(), 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+
+        Button cancelButton = new Button("Cancel", e -> dialog.close());
+
+        dialog.add(form);
+        dialog.getFooter().add(cancelButton, sendButton);
+        dialog.open();
+    }
+
+    private String formatCurrency(java.math.BigDecimal amount) {
+        if (amount == null) return "$0.00";
+        return String.format("$%,.2f", amount);
     }
 }

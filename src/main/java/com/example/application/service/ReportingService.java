@@ -1,17 +1,16 @@
 package com.example.application.service;
 
 import com.example.application.domain.*;
-import com.example.application.repository.AccountRepository;
-import com.example.application.repository.BudgetLineRepository;
-import com.example.application.repository.LedgerEntryRepository;
-import com.example.application.repository.PeriodRepository;
+import com.example.application.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Service for generating financial reports.
@@ -25,15 +24,21 @@ public class ReportingService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final BudgetLineRepository budgetLineRepository;
     private final PeriodRepository periodRepository;
+    private final SalesInvoiceRepository salesInvoiceRepository;
+    private final SupplierBillRepository supplierBillRepository;
 
     public ReportingService(AccountRepository accountRepository,
                             LedgerEntryRepository ledgerEntryRepository,
                             BudgetLineRepository budgetLineRepository,
-                            PeriodRepository periodRepository) {
+                            PeriodRepository periodRepository,
+                            SalesInvoiceRepository salesInvoiceRepository,
+                            SupplierBillRepository supplierBillRepository) {
         this.accountRepository = accountRepository;
         this.ledgerEntryRepository = ledgerEntryRepository;
         this.budgetLineRepository = budgetLineRepository;
         this.periodRepository = periodRepository;
+        this.salesInvoiceRepository = salesInvoiceRepository;
+        this.supplierBillRepository = supplierBillRepository;
     }
 
     /**
@@ -356,6 +361,203 @@ public class ReportingService {
         return lines;
     }
 
+    /**
+     * Generates an AR (Accounts Receivable) Aging Report.
+     * Categorizes outstanding invoices into aging buckets: Current, 1-30, 31-60, 61-90, 90+ days.
+     */
+    public ArAgingReport generateArAging(Company company, LocalDate asOfDate) {
+        List<SalesInvoice> outstandingInvoices = salesInvoiceRepository.findOutstandingByCompany(company);
+
+        Map<Contact, List<ArAgingLine>> byCustomer = new LinkedHashMap<>();
+        BigDecimal totalCurrent = BigDecimal.ZERO;
+        BigDecimal total1to30 = BigDecimal.ZERO;
+        BigDecimal total31to60 = BigDecimal.ZERO;
+        BigDecimal total61to90 = BigDecimal.ZERO;
+        BigDecimal total90Plus = BigDecimal.ZERO;
+
+        for (SalesInvoice invoice : outstandingInvoices) {
+            BigDecimal balance = invoice.getBalance();
+            if (balance.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            int daysOverdue = 0;
+            if (invoice.getDueDate() != null && asOfDate.isAfter(invoice.getDueDate())) {
+                daysOverdue = (int) ChronoUnit.DAYS.between(invoice.getDueDate(), asOfDate);
+            }
+
+            // Create aging line
+            ArAgingLine line = new ArAgingLine(
+                invoice,
+                invoice.getContact(),
+                invoice.getInvoiceNumber(),
+                invoice.getIssueDate(),
+                invoice.getDueDate(),
+                invoice.getTotal(),
+                balance,
+                daysOverdue,
+                getAgingBucket(daysOverdue)
+            );
+
+            byCustomer.computeIfAbsent(invoice.getContact(), k -> new ArrayList<>()).add(line);
+
+            // Add to bucket totals
+            if (daysOverdue <= 0) {
+                totalCurrent = totalCurrent.add(balance);
+            } else if (daysOverdue <= 30) {
+                total1to30 = total1to30.add(balance);
+            } else if (daysOverdue <= 60) {
+                total31to60 = total31to60.add(balance);
+            } else if (daysOverdue <= 90) {
+                total61to90 = total61to90.add(balance);
+            } else {
+                total90Plus = total90Plus.add(balance);
+            }
+        }
+
+        // Flatten and create customer summaries
+        List<ArAgingLine> allLines = byCustomer.values().stream()
+            .flatMap(List::stream)
+            .sorted(Comparator.comparing((ArAgingLine l) -> l.customer().getName())
+                .thenComparing(ArAgingLine::dueDate))
+            .collect(Collectors.toList());
+
+        List<ArAgingCustomerSummary> customerSummaries = byCustomer.entrySet().stream()
+            .map(entry -> {
+                Contact customer = entry.getKey();
+                List<ArAgingLine> lines = entry.getValue();
+                BigDecimal custCurrent = BigDecimal.ZERO;
+                BigDecimal cust1to30 = BigDecimal.ZERO;
+                BigDecimal cust31to60 = BigDecimal.ZERO;
+                BigDecimal cust61to90 = BigDecimal.ZERO;
+                BigDecimal cust90Plus = BigDecimal.ZERO;
+
+                for (ArAgingLine line : lines) {
+                    BigDecimal balance = line.balance();
+                    if (line.daysOverdue() <= 0) custCurrent = custCurrent.add(balance);
+                    else if (line.daysOverdue() <= 30) cust1to30 = cust1to30.add(balance);
+                    else if (line.daysOverdue() <= 60) cust31to60 = cust31to60.add(balance);
+                    else if (line.daysOverdue() <= 90) cust61to90 = cust61to90.add(balance);
+                    else cust90Plus = cust90Plus.add(balance);
+                }
+
+                return new ArAgingCustomerSummary(
+                    customer,
+                    custCurrent, cust1to30, cust31to60, cust61to90, cust90Plus,
+                    custCurrent.add(cust1to30).add(cust31to60).add(cust61to90).add(cust90Plus)
+                );
+            })
+            .sorted(Comparator.comparing(s -> s.customer().getName()))
+            .collect(Collectors.toList());
+
+        BigDecimal grandTotal = totalCurrent.add(total1to30).add(total31to60).add(total61to90).add(total90Plus);
+
+        return new ArAgingReport(
+            asOfDate, allLines, customerSummaries,
+            totalCurrent, total1to30, total31to60, total61to90, total90Plus, grandTotal
+        );
+    }
+
+    /**
+     * Generates an AP (Accounts Payable) Aging Report.
+     * Categorizes outstanding bills into aging buckets: Current, 1-30, 31-60, 61-90, 90+ days.
+     */
+    public ApAgingReport generateApAging(Company company, LocalDate asOfDate) {
+        List<SupplierBill> outstandingBills = supplierBillRepository.findOutstandingByCompany(company);
+
+        Map<Contact, List<ApAgingLine>> bySupplier = new LinkedHashMap<>();
+        BigDecimal totalCurrent = BigDecimal.ZERO;
+        BigDecimal total1to30 = BigDecimal.ZERO;
+        BigDecimal total31to60 = BigDecimal.ZERO;
+        BigDecimal total61to90 = BigDecimal.ZERO;
+        BigDecimal total90Plus = BigDecimal.ZERO;
+
+        for (SupplierBill bill : outstandingBills) {
+            BigDecimal balance = bill.getBalance();
+            if (balance.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            int daysOverdue = 0;
+            if (bill.getDueDate() != null && asOfDate.isAfter(bill.getDueDate())) {
+                daysOverdue = (int) ChronoUnit.DAYS.between(bill.getDueDate(), asOfDate);
+            }
+
+            ApAgingLine line = new ApAgingLine(
+                bill,
+                bill.getContact(),
+                bill.getBillNumber(),
+                bill.getBillDate(),
+                bill.getDueDate(),
+                bill.getTotal(),
+                balance,
+                daysOverdue,
+                getAgingBucket(daysOverdue)
+            );
+
+            bySupplier.computeIfAbsent(bill.getContact(), k -> new ArrayList<>()).add(line);
+
+            // Add to bucket totals
+            if (daysOverdue <= 0) {
+                totalCurrent = totalCurrent.add(balance);
+            } else if (daysOverdue <= 30) {
+                total1to30 = total1to30.add(balance);
+            } else if (daysOverdue <= 60) {
+                total31to60 = total31to60.add(balance);
+            } else if (daysOverdue <= 90) {
+                total61to90 = total61to90.add(balance);
+            } else {
+                total90Plus = total90Plus.add(balance);
+            }
+        }
+
+        // Flatten and create supplier summaries
+        List<ApAgingLine> allLines = bySupplier.values().stream()
+            .flatMap(List::stream)
+            .sorted(Comparator.comparing((ApAgingLine l) -> l.supplier().getName())
+                .thenComparing(ApAgingLine::dueDate))
+            .collect(Collectors.toList());
+
+        List<ApAgingSupplierSummary> supplierSummaries = bySupplier.entrySet().stream()
+            .map(entry -> {
+                Contact supplier = entry.getKey();
+                List<ApAgingLine> lines = entry.getValue();
+                BigDecimal suppCurrent = BigDecimal.ZERO;
+                BigDecimal supp1to30 = BigDecimal.ZERO;
+                BigDecimal supp31to60 = BigDecimal.ZERO;
+                BigDecimal supp61to90 = BigDecimal.ZERO;
+                BigDecimal supp90Plus = BigDecimal.ZERO;
+
+                for (ApAgingLine line : lines) {
+                    BigDecimal balance = line.balance();
+                    if (line.daysOverdue() <= 0) suppCurrent = suppCurrent.add(balance);
+                    else if (line.daysOverdue() <= 30) supp1to30 = supp1to30.add(balance);
+                    else if (line.daysOverdue() <= 60) supp31to60 = supp31to60.add(balance);
+                    else if (line.daysOverdue() <= 90) supp61to90 = supp61to90.add(balance);
+                    else supp90Plus = supp90Plus.add(balance);
+                }
+
+                return new ApAgingSupplierSummary(
+                    supplier,
+                    suppCurrent, supp1to30, supp31to60, supp61to90, supp90Plus,
+                    suppCurrent.add(supp1to30).add(supp31to60).add(supp61to90).add(supp90Plus)
+                );
+            })
+            .sorted(Comparator.comparing(s -> s.supplier().getName()))
+            .collect(Collectors.toList());
+
+        BigDecimal grandTotal = totalCurrent.add(total1to30).add(total31to60).add(total61to90).add(total90Plus);
+
+        return new ApAgingReport(
+            asOfDate, allLines, supplierSummaries,
+            totalCurrent, total1to30, total31to60, total61to90, total90Plus, grandTotal
+        );
+    }
+
+    private String getAgingBucket(int daysOverdue) {
+        if (daysOverdue <= 0) return "Current";
+        if (daysOverdue <= 30) return "1-30 Days";
+        if (daysOverdue <= 60) return "31-60 Days";
+        if (daysOverdue <= 90) return "61-90 Days";
+        return "90+ Days";
+    }
+
     // Record classes for report data
     public record TrialBalance(
         LocalDate startDate,
@@ -418,5 +620,75 @@ public class ReportingService {
         BigDecimal actualAmount,
         BigDecimal variance,
         BigDecimal variancePercent
+    ) {}
+
+    // AR Aging Report records
+    public record ArAgingReport(
+        LocalDate asOfDate,
+        List<ArAgingLine> lines,
+        List<ArAgingCustomerSummary> customerSummaries,
+        BigDecimal totalCurrent,
+        BigDecimal total1to30,
+        BigDecimal total31to60,
+        BigDecimal total61to90,
+        BigDecimal total90Plus,
+        BigDecimal grandTotal
+    ) {}
+
+    public record ArAgingLine(
+        SalesInvoice invoice,
+        Contact customer,
+        String invoiceNumber,
+        LocalDate invoiceDate,
+        LocalDate dueDate,
+        BigDecimal invoiceTotal,
+        BigDecimal balance,
+        int daysOverdue,
+        String agingBucket
+    ) {}
+
+    public record ArAgingCustomerSummary(
+        Contact customer,
+        BigDecimal current,
+        BigDecimal days1to30,
+        BigDecimal days31to60,
+        BigDecimal days61to90,
+        BigDecimal days90Plus,
+        BigDecimal total
+    ) {}
+
+    // AP Aging Report records
+    public record ApAgingReport(
+        LocalDate asOfDate,
+        List<ApAgingLine> lines,
+        List<ApAgingSupplierSummary> supplierSummaries,
+        BigDecimal totalCurrent,
+        BigDecimal total1to30,
+        BigDecimal total31to60,
+        BigDecimal total61to90,
+        BigDecimal total90Plus,
+        BigDecimal grandTotal
+    ) {}
+
+    public record ApAgingLine(
+        SupplierBill bill,
+        Contact supplier,
+        String billNumber,
+        LocalDate billDate,
+        LocalDate dueDate,
+        BigDecimal billTotal,
+        BigDecimal balance,
+        int daysOverdue,
+        String agingBucket
+    ) {}
+
+    public record ApAgingSupplierSummary(
+        Contact supplier,
+        BigDecimal current,
+        BigDecimal days1to30,
+        BigDecimal days31to60,
+        BigDecimal days61to90,
+        BigDecimal days90Plus,
+        BigDecimal total
     ) {}
 }
