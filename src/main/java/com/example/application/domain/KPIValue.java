@@ -31,7 +31,7 @@ public class KPIValue {
     private Period period;
 
     @NotNull
-    @Column(nullable = false, precision = 19, scale = 4)
+    @Column(name = "metric_value", nullable = false, precision = 19, scale = 4)
     private BigDecimal value = BigDecimal.ZERO;
 
     @Size(max = 255)

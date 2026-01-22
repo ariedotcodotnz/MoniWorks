@@ -8,14 +8,15 @@
 - **Phase 4 Reports & Polish COMPLETE** - Tag: 0.0.8
 - **Phase 5 Contacts & Products COMPLETE** - Tag: 0.0.9
 - **Phase 6 A/R and A/P COMPLETE** - Tag: 0.1.2
-- **Phase 7 Budgeting & Departments COMPLETE** - Tag: 0.1.3
+- **Phase 7 Budgeting & Departments COMPLETE** - Tag: 0.1.4
+- **Phase 8 Recurring Transactions COMPLETE** - Tag: 0.1.5
 - All 37 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, ApplicationTest: 1)
-- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue
+- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql
-- All repository interfaces created (35 repositories)
-- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService
-- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql
+- All repository interfaces created (37 repositories)
+- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService
+- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
@@ -138,7 +139,7 @@ Per specs, Release 1 must deliver:
   - PDF automatically generated when PaymentRun is completed and attached to the run
   - Added PAYMENT_RUN to AttachmentLink.EntityType enum
 
-### Phase 7: Budgeting & Departments (COMPLETE) - Tag: 0.1.4
+### Phase 7: Budgeting & Departments (COMPLETE) - Tag: 0.1.3
 - [x] Departments (spec 12)
   - Department entity already existed in domain with code (max 5 chars), name, groupName, classification, active
   - Created DepartmentService with full CRUD, audit logging, createDefaultDepartments
@@ -173,6 +174,43 @@ Per specs, Release 1 must deliver:
   - Shows variance amounts and percentages with totals row
   - Added findByFiscalYearCompanyAndDateRangeOverlap to PeriodRepository for date range queries
 
+### Phase 8: Recurring Transactions (COMPLETE) - Tag: 0.1.5
+- [x] Fixed H2 reserved keyword issue
+  - Renamed 'value' column in kpi_value table to 'metric_value' (V11 migration)
+  - Updated KPIValue entity with @Column(name = "metric_value") annotation
+- [x] Recurring Templates (spec 11)
+  - Created RecurringTemplate entity with:
+    - Template types: PAYMENT, RECEIPT, JOURNAL, INVOICE, BILL
+    - Frequency options: DAILY, WEEKLY, FORTNIGHTLY, MONTHLY, QUARTERLY, YEARLY
+    - Status: ACTIVE, PAUSED, COMPLETED, CANCELLED
+    - Execution modes: AUTO_POST, CREATE_DRAFT
+    - Schedule configuration: startDate, endDate, maxOccurrences, frequencyInterval
+    - Payload stored as JSON for flexible template data
+  - Created RecurrenceExecutionLog entity to track execution history
+  - Created V12__recurring_templates.sql migration with proper indexes
+  - Created RecurringTemplateRepository and RecurrenceExecutionLogRepository
+  - Created RecurringTemplateService with:
+    - Full CRUD for templates
+    - Create from existing Transaction, SalesInvoice, or SupplierBill
+    - Pause/Resume/Cancel functionality
+    - Scheduled execution (cron: daily at 2:00 AM)
+    - Manual "Run Now" capability
+    - Execution logging with success/failure tracking
+  - Created RecurringTemplatesView with:
+    - Master-detail split layout
+    - Status filtering
+    - Execution history grid
+    - Run Due Now button for batch execution
+    - Pause/Resume/Cancel/Delete actions
+    - Create template dialog with JSON payload editor
+  - Added Recurring navigation to MainLayout with TIME_FORWARD icon
+
+### Phase 9: Remaining Features (PENDING)
+- [ ] PDF/Excel export for all reports (spec 13)
+- [ ] Global search with query expressions (spec 15)
+- [ ] Saved views and grid customization (spec 15)
+- [ ] Email sending integration (spec 13)
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -192,6 +230,10 @@ Per specs, Release 1 must deliver:
 - Use DateTimeFormatter for displaying period names (e.g., "MMM yyyy")
 - AccountService.findByCompany takes Company object, not companyId
 - When adding new constructor parameters to services (like ReportingService), update all unit tests to include mocks for the new dependencies
+- H2 reserves 'value' as a keyword - renamed kpi_value.value to metric_value via migration V11
+- AuditService.logEvent signature: (Company, User, String eventType, String entityType, Long entityId, String summary) - use strings not enums
+- @Scheduled annotation requires Spring's scheduling to be enabled (@EnableScheduling on Application class)
+- JSON payload serialization for recurring templates uses Jackson ObjectMapper with ObjectNode/ArrayNode builders
 
 ## Technical Notes
 - Build: `./mvnw compile`

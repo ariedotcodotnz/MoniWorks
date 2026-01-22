@@ -11,6 +11,7 @@ import com.example.application.ui.views.GstReturnsView;
 import com.example.application.ui.views.KPIsView;
 import com.example.application.ui.views.PeriodsView;
 import com.example.application.ui.views.ProductsView;
+import com.example.application.ui.views.RecurringTemplatesView;
 import com.example.application.ui.views.ReportsView;
 import com.example.application.ui.views.SalesInvoicesView;
 import com.example.application.ui.views.SupplierBillsView;
@@ -91,6 +92,8 @@ public class MainLayout extends AppLayout {
             VaadinIcon.MONEY.create()));
         nav.addItem(new SideNavItem("KPIs", KPIsView.class,
             VaadinIcon.TRENDING_UP.create()));
+        nav.addItem(new SideNavItem("Recurring", RecurringTemplatesView.class,
+            VaadinIcon.TIME_FORWARD.create()));
         nav.addItem(new SideNavItem("Reports", ReportsView.class,
             VaadinIcon.CHART.create()));
         nav.addItem(new SideNavItem("Periods", PeriodsView.class,
