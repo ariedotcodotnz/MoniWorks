@@ -28,7 +28,8 @@
 - **Phase 20 User Invitation Workflow COMPLETE** - Tag: 0.3.2
 - **Phase 21 Credit Notes for Invoices COMPLETE** - Tag: 0.3.3
 - **Phase 22 Contact CSV Import COMPLETE** - Tag: 0.3.4
-- All 111 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, ApplicationTest: 1)
+- **Phase 23 Budget CSV Import COMPLETE** - Tag: 0.3.5
+- All 127 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
@@ -656,6 +657,42 @@ Per specs, Release 1 must deliver:
   - All fields parsing
   - Quoted fields with commas
   - Flexible column name formats
+  - Preview mode without saving
+
+### Phase 23: Budget CSV Import (COMPLETE) - Tag: 0.3.5
+- [x] BudgetImportService for CSV parsing (spec 12)
+  - Flexible column mapping with case-insensitive header matching
+  - Required columns: account_code, period_date, amount
+  - Optional column: department_code
+  - Multiple date format support (YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, etc.)
+  - Amount parsing with comma and dollar sign removal
+  - Account code validation against company accounts
+  - Period lookup by date (finds period containing the given date)
+  - Optional department validation
+- [x] Import and update modes
+  - Import only mode skips existing budget lines (same account/period/department)
+  - Update mode updates existing budget lines with new amounts
+  - Preview mode to see changes before committing
+- [x] Import UI in BudgetsView
+  - "Import CSV" button in budget detail panel
+  - Import dialog with instructions and sample CSV download
+  - File upload with CSV format validation
+  - Preview of import results before committing
+  - "Update existing budget lines" checkbox option
+  - Error and warning display
+- [x] BudgetImportServiceTest with 16 unit tests covering:
+  - Valid CSV import
+  - Missing required columns
+  - Account not found
+  - Period not found
+  - Invalid date format
+  - Invalid amount format
+  - Skip existing lines mode
+  - Update existing lines mode
+  - Department parsing
+  - Department not found
+  - Multiple date formats
+  - Amount with commas and dollar signs
   - Preview mode without saving
 
 ## Lessons Learned
