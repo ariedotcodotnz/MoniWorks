@@ -14,6 +14,7 @@
 - **Phase 10 Email & Grid Customization COMPLETE** - Tag: 0.1.8
 - **Phase 11 Release Readiness & Quality COMPLETE** - Tag: 0.1.9
 - **Phase 12 Invoice & Statement PDFs COMPLETE** - Tag: 0.2.0
+- **Phase 12b AR/AP Aging Reports UI COMPLETE** - Tag: 0.2.1
 - All 70 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
 - Database configured: H2 for development, PostgreSQL for production
