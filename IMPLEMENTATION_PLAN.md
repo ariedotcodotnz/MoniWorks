@@ -5,7 +5,7 @@
 - **Phase 1 Foundation COMPLETE** - Tag: 0.0.1
 - **Phase 2 Core Accounting COMPLETE** - Tag: 0.0.2
 - **Phase 3 Tax & Bank COMPLETE** - Tag: 0.0.3
-- **Phase 4 Reports & Polish COMPLETE** - Tag: 0.0.7
+- **Phase 4 Reports & Polish COMPLETE** - Tag: 0.0.8
 - All 37 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink
 - Database configured: H2 for development, PostgreSQL for production
@@ -81,7 +81,13 @@ Per specs, Release 1 must deliver:
   - Creates balanced transactions (DR Bank / CR Account for receipts, etc.)
   - Posts transactions immediately after creation
 
-### Phase 4: Reports & Polish (COMPLETE) - Tag: 0.0.7
+### Phase 4: Reports & Polish (COMPLETE) - Tag: 0.0.8
+- [x] Dashboard tiles
+  - Implemented Cash Balance tile showing all bank account balances with totals
+  - Implemented This Month tile showing current month's income, expenses, and net profit/loss
+  - Implemented GST Estimate tile showing output tax, input tax, and GST payable/refund
+  - Responsive flex layout with colored accent bars per tile
+  - Currency formatting for NZ locale
 - [x] Trial Balance report view
   - Created ReportsView.java with tabbed interface for all 3 financial reports
   - Date range pickers (from_date to to_date) for Trial Balance filtering
@@ -118,6 +124,31 @@ Per specs, Release 1 must deliver:
   - Detail dialog showing event metadata and formatted JSON details
   - Added Audit Trail navigation item to MainLayout
   - Backend logging already integrated in PostingService, TaxReturnService, AttachmentService
+
+### Phase 5: Release 2 - Contacts & Products (NOT STARTED)
+Per specs, Release 2 will add:
+- [ ] Contacts/Customers/Suppliers (spec 07)
+  - Contact entity with code, name, type (CUSTOMER/SUPPLIER/BOTH), category
+  - ContactPerson entity for multiple people per contact
+  - ContactNote for notes and follow-up reminders
+  - ContactsView with search, detail tabs, and CRUD
+  - Tax overrides and default GL allocation per contact
+- [ ] Products (spec 08 - non-inventory v1)
+  - Product entity with code, name, buy/sell prices, tax defaults
+  - ProductsView with filtering and detail view
+  - Sticky notes that appear when product selected
+- [ ] Dashboard Overdue AR/AP tiles (requires A/R and A/P from specs 09/10)
+
+### Phase 6: Release 2 - A/R and A/P (NOT STARTED)
+- [ ] Accounts Receivable (spec 09)
+  - SalesInvoice and SalesInvoiceLine entities
+  - Invoice workflow: DRAFT → ISSUED → VOID
+  - Customer statements
+  - Receipt allocation to invoices
+- [ ] Accounts Payable (spec 10)
+  - Bill and BillLine entities
+  - Payment runs
+  - Remittance advice PDF
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
