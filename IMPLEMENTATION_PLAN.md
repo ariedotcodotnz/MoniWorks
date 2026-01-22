@@ -17,10 +17,11 @@
 - **Phase 12b AR/AP Aging Reports UI COMPLETE** - Tag: 0.2.1
 - **Phase 13a Receipt Allocation UI COMPLETE** - Tag: 0.2.2
 - **Phase 13b Payment Allocation UI COMPLETE** - Tag: 0.2.3
+- **Phase 13c Statement Runs COMPLETE** - Tag: 0.2.4
 - All 70 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql
 - All repository interfaces created (38 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView
@@ -355,6 +356,21 @@ Per specs, Release 1 must deliver:
   - Added allocations section to SupplierBillsView bill detail
   - Shows grid of allocated payments with date, reference, amount, allocation date
   - Only displays for posted bills with payments (amountPaid > 0)
+
+### Phase 13c: Statement Runs (COMPLETE) - Tag: 0.2.4
+- [x] StatementRun entity and migration (spec 09)
+  - Created StatementRun entity with status (PENDING/PROCESSING/COMPLETED/FAILED)
+  - Fields: company, runDate, asOfDate, criteriaJson, statementCount, outputAttachmentId
+  - Created V14__statement_runs.sql migration
+  - Created StatementRunRepository with query methods
+- [x] StatementRunService for batch statement processing (spec 09)
+  - StatementCriteria record for filtering: minimumBalance, minimumDaysOverdue, contactIds, includeZeroBalance
+  - createRun() creates a statement run with criteria stored as JSON
+  - processRun() finds matching customers and generates combined PDF
+  - previewCustomers() shows which customers would be included before running
+  - Combined PDF puts each customer's statement on new pages
+  - Audit logging for run creation, completion, and failures
+  - Added STATEMENT_RUN to AttachmentLink.EntityType enum
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead

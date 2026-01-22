@@ -27,7 +27,8 @@ public class AttachmentLink {
         BILL,
         PRODUCT,
         CONTACT,
-        PAYMENT_RUN
+        PAYMENT_RUN,
+        STATEMENT_RUN
     }
 
     @Id
