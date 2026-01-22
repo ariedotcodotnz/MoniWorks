@@ -5,6 +5,7 @@ import com.example.application.domain.Contact.ContactType;
 import com.example.application.domain.SavedView.EntityType;
 import com.example.application.service.AccountService;
 import com.example.application.service.CompanyContextService;
+import com.example.application.service.ContactImportService;
 import com.example.application.service.ContactService;
 import com.example.application.service.SavedViewService;
 import com.example.application.ui.MainLayout;
@@ -33,11 +34,19 @@ import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.BigDecimalField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.security.PermitAll;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -57,6 +66,7 @@ public class ContactsView extends VerticalLayout {
     private final AccountService accountService;
     private final CompanyContextService companyContextService;
     private final SavedViewService savedViewService;
+    private final ContactImportService contactImportService;
 
     private final Grid<Contact> grid = new Grid<>();
     private final TextField searchField = new TextField();
@@ -72,11 +82,13 @@ public class ContactsView extends VerticalLayout {
     public ContactsView(ContactService contactService,
                         AccountService accountService,
                         CompanyContextService companyContextService,
-                        SavedViewService savedViewService) {
+                        SavedViewService savedViewService,
+                        ContactImportService contactImportService) {
         this.contactService = contactService;
         this.accountService = accountService;
         this.companyContextService = companyContextService;
         this.savedViewService = savedViewService;
+        this.contactImportService = contactImportService;
 
         addClassName("contacts-view");
         setSizeFull();
@@ -196,6 +208,10 @@ public class ContactsView extends VerticalLayout {
         addButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         addButton.addClickListener(e -> openContactDialog(null));
 
+        Button importButton = new Button("Import CSV", VaadinIcon.UPLOAD.create());
+        importButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        importButton.addClickListener(e -> openImportDialog());
+
         Button refreshButton = new Button(VaadinIcon.REFRESH.create());
         refreshButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         refreshButton.addClickListener(e -> loadContacts());
@@ -205,7 +221,7 @@ public class ContactsView extends VerticalLayout {
         if (gridCustomizer != null) {
             filters.add(gridCustomizer);
         }
-        filters.add(addButton, refreshButton);
+        filters.add(addButton, importButton, refreshButton);
         filters.setAlignItems(FlexComponent.Alignment.BASELINE);
 
         HorizontalLayout toolbar = new HorizontalLayout(title, filters);
@@ -780,5 +796,158 @@ public class ContactsView extends VerticalLayout {
 
     private String emptyToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void openImportDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Import Contacts from CSV");
+        dialog.setWidth("600px");
+
+        VerticalLayout layout = new VerticalLayout();
+        layout.setPadding(false);
+        layout.setSpacing(true);
+
+        // Instructions
+        Span instructions = new Span("Upload a CSV file with contact data. Required columns: code, name. " +
+            "Optional columns: type, email, phone, mobile, addressLine1, addressLine2, city, region, " +
+            "postalCode, country, category, paymentTerms, creditLimit, bankName, bankAccountNumber, " +
+            "bankRouting, taxOverrideCode.");
+        instructions.getStyle()
+            .set("color", "var(--lumo-secondary-text-color)")
+            .set("font-size", "var(--lumo-font-size-s)");
+
+        // Download sample CSV link
+        String sampleCsv = contactImportService.getSampleCsvContent();
+        StreamResource sampleResource = new StreamResource("contacts_sample.csv",
+            () -> new ByteArrayInputStream(sampleCsv.getBytes(StandardCharsets.UTF_8)));
+        sampleResource.setContentType("text/csv");
+        Anchor downloadSample = new Anchor(sampleResource, "Download sample CSV");
+        downloadSample.getElement().setAttribute("download", true);
+        downloadSample.getStyle().set("font-size", "var(--lumo-font-size-s)");
+
+        // Update existing checkbox
+        Checkbox updateExisting = new Checkbox("Update existing contacts (match by code)");
+        updateExisting.setValue(false);
+        updateExisting.setHelperText("If unchecked, contacts with existing codes will be skipped");
+
+        // File upload
+        MemoryBuffer buffer = new MemoryBuffer();
+        Upload upload = new Upload(buffer);
+        upload.setAcceptedFileTypes(".csv", "text/csv");
+        upload.setMaxFiles(1);
+        upload.setDropLabel(new Span("Drop CSV file here or click to upload"));
+        upload.setWidthFull();
+
+        // Preview/result area
+        VerticalLayout resultArea = new VerticalLayout();
+        resultArea.setPadding(false);
+        resultArea.setVisible(false);
+
+        // Import button
+        Button importButton = new Button("Import");
+        importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        importButton.setEnabled(false);
+
+        // Store the uploaded stream for import
+        final InputStream[] uploadedStream = {null};
+        final byte[][] uploadedBytes = {null};
+
+        upload.addSucceededListener(event -> {
+            try {
+                // Read the stream into bytes for multiple uses
+                uploadedBytes[0] = buffer.getInputStream().readAllBytes();
+
+                // Preview the import
+                Company company = companyContextService.getCurrentCompany();
+                ContactImportService.ImportResult preview = contactImportService.previewImport(
+                    new ByteArrayInputStream(uploadedBytes[0]),
+                    company,
+                    updateExisting.getValue()
+                );
+
+                resultArea.removeAll();
+                if (preview.success()) {
+                    Span previewText = new Span(String.format(
+                        "Preview: %d contacts to import, %d to update, %d to skip",
+                        preview.imported(), preview.updated(), preview.skipped()));
+                    previewText.getStyle().set("color", "var(--lumo-success-text-color)");
+                    resultArea.add(previewText);
+
+                    if (!preview.warnings().isEmpty()) {
+                        for (String warning : preview.warnings()) {
+                            Span warningSpan = new Span(warning);
+                            warningSpan.getStyle().set("color", "var(--lumo-warning-text-color)")
+                                .set("font-size", "var(--lumo-font-size-s)");
+                            resultArea.add(warningSpan);
+                        }
+                    }
+
+                    importButton.setEnabled(preview.imported() > 0 || preview.updated() > 0);
+                } else {
+                    for (String error : preview.errors()) {
+                        Span errorSpan = new Span(error);
+                        errorSpan.getStyle().set("color", "var(--lumo-error-text-color)");
+                        resultArea.add(errorSpan);
+                    }
+                    importButton.setEnabled(false);
+                }
+                resultArea.setVisible(true);
+            } catch (IOException e) {
+                Notification.show("Error reading file: " + e.getMessage(), 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+
+        upload.addFileRejectedListener(event -> {
+            Notification.show("Invalid file: " + event.getErrorMessage(), 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        });
+
+        importButton.addClickListener(e -> {
+            if (uploadedBytes[0] == null) {
+                Notification.show("Please upload a file first", 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                return;
+            }
+
+            try {
+                Company company = companyContextService.getCurrentCompany();
+                User user = companyContextService.getCurrentUser();
+                ContactImportService.ImportResult result = contactImportService.importContacts(
+                    new ByteArrayInputStream(uploadedBytes[0]),
+                    company,
+                    user,
+                    updateExisting.getValue()
+                );
+
+                if (result.success()) {
+                    Notification.show(String.format(
+                        "Import complete: %d imported, %d updated, %d skipped",
+                        result.imported(), result.updated(), result.skipped()),
+                        5000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    dialog.close();
+                    loadContacts();
+                } else {
+                    resultArea.removeAll();
+                    for (String error : result.errors()) {
+                        Span errorSpan = new Span(error);
+                        errorSpan.getStyle().set("color", "var(--lumo-error-text-color)");
+                        resultArea.add(errorSpan);
+                    }
+                }
+            } catch (IOException ex) {
+                Notification.show("Import failed: " + ex.getMessage(), 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+
+        Button cancelButton = new Button("Cancel", e -> dialog.close());
+
+        layout.add(instructions, downloadSample, updateExisting, upload, resultArea);
+
+        dialog.add(layout);
+        dialog.getFooter().add(cancelButton, importButton);
+        dialog.open();
     }
 }

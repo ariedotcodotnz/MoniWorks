@@ -27,7 +27,8 @@
 - **Phase 19 Payment Runs UI COMPLETE** - Tag: 0.3.1
 - **Phase 20 User Invitation Workflow COMPLETE** - Tag: 0.3.2
 - **Phase 21 Credit Notes for Invoices COMPLETE** - Tag: 0.3.3
-- All 99 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ApplicationTest: 1)
+- **Phase 22 Contact CSV Import COMPLETE** - Tag: 0.3.4
+- All 111 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
@@ -623,6 +624,39 @@ Per specs, Release 1 must deliver:
   - Cannot issue already-issued credit note
   - Cannot issue credit note with no lines
   - Find credit notes for invoice
+
+### Phase 22: Contact CSV Import (COMPLETE) - Tag: 0.3.4
+- [x] ContactImportService for CSV parsing (spec 07)
+  - Flexible column mapping with case-insensitive header matching
+  - Required columns: code, name
+  - Optional columns: type, category, email, phone, mobile, website, address fields, paymentTerms, creditLimit, bank details, taxOverrideCode
+  - Handles quoted fields with embedded commas
+  - Header name normalization (removes spaces, underscores, hyphens)
+  - Code length validation (max 11 characters)
+  - Credit limit parsing with comma removal
+  - Country code truncation to 2 characters
+- [x] Import and update modes
+  - Import only mode skips existing contacts by code
+  - Update mode updates existing contacts with new values
+  - Preview mode to see changes before committing
+- [x] Import UI in ContactsView
+  - "Import CSV" button in toolbar
+  - Import dialog with instructions and sample CSV download
+  - File upload with CSV format validation
+  - Preview of import results before committing
+  - "Update existing contacts" checkbox option
+  - Error and warning display
+- [x] ContactImportServiceTest with 12 unit tests covering:
+  - Valid CSV import
+  - Missing required columns (code, name)
+  - Empty file handling
+  - Code length validation
+  - Skip existing contacts mode
+  - Update existing contacts mode
+  - All fields parsing
+  - Quoted fields with commas
+  - Flexible column name formats
+  - Preview mode without saving
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
