@@ -18,6 +18,7 @@ import java.util.List;
  * - Debits must equal credits
  * - Transaction date must be in an open period
  * - Posted transactions are immutable
+ * - Tax calculations are recorded via TaxLine entities
  */
 @Service
 @Transactional
@@ -27,15 +28,18 @@ public class PostingService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final PeriodRepository periodRepository;
     private final AuditService auditService;
+    private final TaxCalculationService taxCalculationService;
 
     public PostingService(TransactionRepository transactionRepository,
                           LedgerEntryRepository ledgerEntryRepository,
                           PeriodRepository periodRepository,
-                          AuditService auditService) {
+                          AuditService auditService,
+                          TaxCalculationService taxCalculationService) {
         this.transactionRepository = transactionRepository;
         this.ledgerEntryRepository = ledgerEntryRepository;
         this.periodRepository = periodRepository;
         this.auditService = auditService;
+        this.taxCalculationService = taxCalculationService;
     }
 
     /**
@@ -58,6 +62,9 @@ public class PostingService {
 
         // Save all ledger entries
         ledgerEntryRepository.saveAll(entries);
+
+        // Create tax lines for entries with tax codes
+        taxCalculationService.createTaxLinesForLedgerEntries(transaction.getCompany(), entries);
 
         // Update transaction status
         transaction.setStatus(Transaction.Status.POSTED);

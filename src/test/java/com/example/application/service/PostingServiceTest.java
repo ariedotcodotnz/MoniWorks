@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -37,6 +38,9 @@ class PostingServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private TaxCalculationService taxCalculationService;
+
     private PostingService postingService;
 
     private Company company;
@@ -51,7 +55,8 @@ class PostingServiceTest {
             transactionRepository,
             ledgerEntryRepository,
             periodRepository,
-            auditService
+            auditService,
+            taxCalculationService
         );
 
         company = new Company("Test Company", "NZ", "NZD", LocalDate.of(2024, 4, 1));
@@ -84,6 +89,8 @@ class PostingServiceTest {
         when(transactionRepository.save(any(Transaction.class))).thenReturn(transaction);
         when(auditService.logEvent(any(), any(), any(), any(), any(), any()))
             .thenReturn(new AuditEvent());
+        when(taxCalculationService.createTaxLinesForLedgerEntries(any(), anyList()))
+            .thenReturn(new ArrayList<>());
 
         // Act
         Transaction result = postingService.postTransaction(transaction, user);
@@ -92,6 +99,7 @@ class PostingServiceTest {
         assertEquals(Transaction.Status.POSTED, result.getStatus());
         assertNotNull(result.getPostedAt());
         verify(ledgerEntryRepository).saveAll(anyList());
+        verify(taxCalculationService).createTaxLinesForLedgerEntries(any(), anyList());
         verify(auditService).logEvent(any(), eq(user), eq("TRANSACTION_POSTED"),
             eq("Transaction"), any(), any());
     }
@@ -194,6 +202,8 @@ class PostingServiceTest {
             .thenReturn(Optional.of(openPeriod));
         when(auditService.logEvent(any(), any(), any(), any(), any(), any()))
             .thenReturn(new AuditEvent());
+        when(taxCalculationService.createTaxLinesForLedgerEntries(any(), anyList()))
+            .thenReturn(new ArrayList<>());
 
         // Act
         Transaction reversal = postingService.reverseTransaction(original, user, "Error correction");

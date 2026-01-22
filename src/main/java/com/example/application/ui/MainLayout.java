@@ -1,7 +1,9 @@
 package com.example.application.ui;
 
 import com.example.application.ui.views.AccountsView;
+import com.example.application.ui.views.BankReconciliationView;
 import com.example.application.ui.views.DashboardView;
+import com.example.application.ui.views.GstReturnsView;
 import com.example.application.ui.views.PeriodsView;
 import com.example.application.ui.views.ReportsView;
 import com.example.application.ui.views.TaxCodesView;
@@ -59,10 +61,14 @@ public class MainLayout extends AppLayout {
             VaadinIcon.DASHBOARD.create()));
         nav.addItem(new SideNavItem("Transactions", TransactionsView.class,
             VaadinIcon.EXCHANGE.create()));
+        nav.addItem(new SideNavItem("Bank Reconciliation", BankReconciliationView.class,
+            VaadinIcon.PIGGY_BANK.create()));
         nav.addItem(new SideNavItem("Accounts", AccountsView.class,
             VaadinIcon.BOOK.create()));
         nav.addItem(new SideNavItem("Tax Codes", TaxCodesView.class,
             VaadinIcon.CALC.create()));
+        nav.addItem(new SideNavItem("GST Returns", GstReturnsView.class,
+            VaadinIcon.FILE_TEXT_O.create()));
         nav.addItem(new SideNavItem("Reports", ReportsView.class,
             VaadinIcon.CHART.create()));
         nav.addItem(new SideNavItem("Periods", PeriodsView.class,
