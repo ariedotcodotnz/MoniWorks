@@ -25,13 +25,14 @@
 - **Phase 17 Account Security Level & Audit Logging COMPLETE** - Tag: 0.2.9
 - **Phase 18 Report Drilldown & Allocation Rules UI COMPLETE** - Tag: 0.3.0
 - **Phase 19 Payment Runs UI COMPLETE** - Tag: 0.3.1
-- All 71 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
-- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
+- **Phase 20 User Invitation Workflow COMPLETE** - Tag: 0.3.2
+- All 88 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, ApplicationTest: 1)
+- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql
-- All repository interfaces created (38 repositories)
-- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService
-- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql
+- All repository interfaces created (41 repositories)
+- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService, InvitationService
+- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
@@ -549,6 +550,41 @@ Per specs, Release 1 must deliver:
 - [x] Added findBankAccountsByCompany and findBankAccountsByCompanyWithSecurityLevel to AccountService
   - Exposes existing AccountRepository methods for finding bank accounts
 
+### Phase 20: User Invitation Workflow (COMPLETE) - Tag: 0.3.2
+- [x] User Invitation entity and migration (spec 02)
+  - Created UserInvitation entity with token, expiresAt, status (PENDING/ACCEPTED/EXPIRED/CANCELLED)
+  - Fields: email, displayName, company, role, invitedBy, acceptedAt, acceptedUser
+  - Created V17__user_invitations.sql migration with indexes
+  - Created UserInvitationRepository with query methods for pending/expired invitations
+- [x] InvitationService for invitation workflow (spec 02)
+  - createInvitation() generates secure token and sends invitation email
+  - validateToken() checks if token is valid and not expired
+  - acceptInvitationNewUser() creates user account and company membership
+  - acceptInvitationExistingUser() creates membership for logged-in users
+  - cancelInvitation() and resendInvitation() for admin management
+  - @Scheduled task to expire old invitations daily at 3 AM
+  - Configurable expiry days (default 7) via moniworks.invitation.expiry-days
+  - Configurable base URL via moniworks.invitation.base-url
+- [x] AcceptInvitationView (spec 02)
+  - Public view (@AnonymousAllowed) for accepting invitations via token
+  - Handles new user registration with password setup
+  - Handles existing logged-in users accepting invitations
+  - Validates email match for existing users
+  - Shows invitation details (company, role, expiry, inviter)
+  - Redirects to login on success for new users
+- [x] UsersView enhancements (spec 02)
+  - Added "Invite by Email" button with invitation dialog
+  - Added "Pending Invitations" tab showing all company invitations
+  - Invitation detail view with resend/cancel/copy link actions
+  - Status display and expiry tracking
+  - Invitation grid with email, role, status, expires, invited by columns
+- [x] InvitationServiceTest with 18 unit tests covering:
+  - Create invitation success and failure scenarios
+  - Token validation (valid, expired, accepted, nonexistent)
+  - Accept invitation for new and existing users
+  - Cancel and resend invitation workflows
+  - URL generation
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -598,6 +634,9 @@ Per specs, Release 1 must deliver:
 - Vaadin Checkbox doesn't have setUserData/getUserData methods - use a Map<Checkbox, Object> to associate data with checkboxes
 - EmailService.EmailResult.queued() is a static factory method, not an instance method - check status with result.status().equals("QUEUED")
 - EmailService.sendRemittanceAdvice signature is (Contact, Company, byte[], User) - contact first, not company
+- User invitation tokens use SecureRandom with Base64 URL encoding for security
+- Vaadin @AnonymousAllowed annotation allows public access to views without Spring Security config changes
+- ReflectionTestUtils.setField() used to inject @Value fields in unit tests
 
 ## Technical Notes
 - Build: `./mvnw compile`

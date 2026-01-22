@@ -4,8 +4,11 @@ import com.example.application.domain.Company;
 import com.example.application.domain.CompanyMembership;
 import com.example.application.domain.Role;
 import com.example.application.domain.User;
+import com.example.application.domain.UserInvitation;
 import com.example.application.security.Permissions;
 import com.example.application.service.CompanyContextService;
+import com.example.application.service.InvitationService;
+import com.example.application.service.InvitationService.InvitationResult;
 import com.example.application.service.RoleService;
 import com.example.application.service.UserService;
 import com.example.application.ui.MainLayout;
@@ -28,6 +31,8 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.PasswordField;
+import com.vaadin.flow.component.tabs.Tab;
+import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -35,6 +40,8 @@ import com.vaadin.flow.theme.lumo.LumoUtility;
 import jakarta.annotation.security.RolesAllowed;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -49,33 +56,63 @@ public class UsersView extends VerticalLayout {
     private final UserService userService;
     private final RoleService roleService;
     private final CompanyContextService companyContextService;
+    private final InvitationService invitationService;
 
     private final Grid<CompanyMembership> membershipGrid;
+    private final Grid<UserInvitation> invitationsGrid;
     private final VerticalLayout detailLayout;
     private CompanyMembership selectedMembership;
+    private UserInvitation selectedInvitation;
+    private TabSheet tabSheet;
 
     public UsersView(UserService userService, RoleService roleService,
-                     CompanyContextService companyContextService) {
+                     CompanyContextService companyContextService,
+                     InvitationService invitationService) {
         this.userService = userService;
         this.roleService = roleService;
         this.companyContextService = companyContextService;
+        this.invitationService = invitationService;
 
         setSizeFull();
         setPadding(false);
         setSpacing(false);
 
         membershipGrid = createMembershipGrid();
+        invitationsGrid = createInvitationsGrid();
         detailLayout = createDetailLayout();
 
         // Create toolbar
         HorizontalLayout toolbar = createToolbar();
+
+        // Create tab sheet for members and invitations
+        tabSheet = new TabSheet();
+        tabSheet.setSizeFull();
+
+        VerticalLayout membersTab = new VerticalLayout(membershipGrid);
+        membersTab.setSizeFull();
+        membersTab.setPadding(false);
+        membersTab.setSpacing(false);
+
+        VerticalLayout invitationsTab = new VerticalLayout(invitationsGrid);
+        invitationsTab.setSizeFull();
+        invitationsTab.setPadding(false);
+        invitationsTab.setSpacing(false);
+
+        tabSheet.add("Members", membersTab);
+        tabSheet.add("Pending Invitations", invitationsTab);
+
+        tabSheet.addSelectedChangeListener(e -> {
+            selectedMembership = null;
+            selectedInvitation = null;
+            updateDetailLayout();
+        });
 
         // Create split layout
         SplitLayout splitLayout = new SplitLayout();
         splitLayout.setSizeFull();
         splitLayout.setSplitterPosition(60);
 
-        VerticalLayout masterLayout = new VerticalLayout(toolbar, membershipGrid);
+        VerticalLayout masterLayout = new VerticalLayout(toolbar, tabSheet);
         masterLayout.setSizeFull();
         masterLayout.setPadding(false);
         masterLayout.setSpacing(false);
@@ -86,6 +123,7 @@ public class UsersView extends VerticalLayout {
         add(splitLayout);
 
         refreshGrid();
+        refreshInvitationsGrid();
     }
 
     private HorizontalLayout createToolbar() {
@@ -96,10 +134,13 @@ public class UsersView extends VerticalLayout {
         addUserBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         addUserBtn.addClickListener(e -> showAddUserDialog());
 
-        Button inviteBtn = new Button("Invite to Company", VaadinIcon.ENVELOPE.create());
-        inviteBtn.addClickListener(e -> showInviteDialog());
+        Button inviteByEmailBtn = new Button("Invite by Email", VaadinIcon.ENVELOPE.create());
+        inviteByEmailBtn.addClickListener(e -> showInviteByEmailDialog());
 
-        HorizontalLayout toolbar = new HorizontalLayout(title, addUserBtn, inviteBtn);
+        Button inviteExistingBtn = new Button("Add Existing User", VaadinIcon.USER.create());
+        inviteExistingBtn.addClickListener(e -> showInviteExistingUserDialog());
+
+        HorizontalLayout toolbar = new HorizontalLayout(title, addUserBtn, inviteByEmailBtn, inviteExistingBtn);
         toolbar.setAlignItems(FlexComponent.Alignment.CENTER);
         toolbar.setWidthFull();
         toolbar.addClassNames(LumoUtility.Padding.MEDIUM);
@@ -145,6 +186,60 @@ public class UsersView extends VerticalLayout {
 
         grid.asSingleSelect().addValueChangeListener(e -> {
             selectedMembership = e.getValue();
+            selectedInvitation = null;
+            updateDetailLayout();
+        });
+
+        return grid;
+    }
+
+    private Grid<UserInvitation> createInvitationsGrid() {
+        Grid<UserInvitation> grid = new Grid<>();
+        grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+        grid.setSizeFull();
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(ZoneId.systemDefault());
+
+        grid.addColumn(UserInvitation::getEmail)
+            .setHeader("Email")
+            .setSortable(true)
+            .setKey("email")
+            .setResizable(true);
+
+        grid.addColumn(i -> i.getDisplayName() != null ? i.getDisplayName() : "-")
+            .setHeader("Name")
+            .setSortable(true)
+            .setKey("name")
+            .setResizable(true);
+
+        grid.addColumn(i -> i.getRole().getName())
+            .setHeader("Role")
+            .setSortable(true)
+            .setKey("role")
+            .setResizable(true);
+
+        grid.addColumn(i -> i.getStatus().name())
+            .setHeader("Status")
+            .setSortable(true)
+            .setKey("status")
+            .setResizable(true);
+
+        grid.addColumn(i -> formatter.format(i.getExpiresAt()))
+            .setHeader("Expires")
+            .setSortable(true)
+            .setKey("expires")
+            .setResizable(true);
+
+        grid.addColumn(i -> i.getInvitedBy() != null ? i.getInvitedBy().getDisplayName() : "-")
+            .setHeader("Invited By")
+            .setSortable(true)
+            .setKey("invitedBy")
+            .setResizable(true);
+
+        grid.asSingleSelect().addValueChangeListener(e -> {
+            selectedInvitation = e.getValue();
+            selectedMembership = null;
             updateDetailLayout();
         });
 
@@ -169,8 +264,8 @@ public class UsersView extends VerticalLayout {
     private void updateDetailLayout() {
         detailLayout.removeAll();
 
-        if (selectedMembership == null) {
-            Span placeholder = new Span("Select a user to view details");
+        if (selectedMembership == null && selectedInvitation == null) {
+            Span placeholder = new Span("Select a user or invitation to view details");
             placeholder.addClassNames(LumoUtility.TextColor.SECONDARY);
             detailLayout.add(placeholder);
             detailLayout.setAlignItems(FlexComponent.Alignment.CENTER);
@@ -181,6 +276,14 @@ public class UsersView extends VerticalLayout {
         detailLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
         detailLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 
+        if (selectedMembership != null) {
+            updateMembershipDetail();
+        } else if (selectedInvitation != null) {
+            updateInvitationDetail();
+        }
+    }
+
+    private void updateMembershipDetail() {
         User user = selectedMembership.getUser();
 
         H3 header = new H3(user.getDisplayName());
@@ -230,10 +333,78 @@ public class UsersView extends VerticalLayout {
             permissionsHeader, permissionsLayout, actions);
     }
 
+    private void updateInvitationDetail() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMMM d, yyyy 'at' h:mm a")
+            .withZone(ZoneId.systemDefault());
+
+        H3 header = new H3("Invitation Details");
+        header.addClassNames(LumoUtility.Margin.NONE);
+
+        Span emailLabel = new Span("Email: " + selectedInvitation.getEmail());
+        Span nameLabel = new Span("Name: " + (selectedInvitation.getDisplayName() != null ? selectedInvitation.getDisplayName() : "-"));
+        Span roleLabel = new Span("Role: " + selectedInvitation.getRole().getName());
+        Span statusLabel = new Span("Status: " + selectedInvitation.getStatus().name());
+        Span expiresLabel = new Span("Expires: " + formatter.format(selectedInvitation.getExpiresAt()));
+        Span invitedByLabel = new Span("Invited by: " +
+            (selectedInvitation.getInvitedBy() != null ? selectedInvitation.getInvitedBy().getDisplayName() : "-"));
+        Span createdLabel = new Span("Created: " + formatter.format(selectedInvitation.getCreatedAt()));
+
+        // Status-specific info
+        if (selectedInvitation.isExpired() && selectedInvitation.getStatus() == UserInvitation.InvitationStatus.PENDING) {
+            Span expiredWarning = new Span("This invitation has expired");
+            expiredWarning.getStyle().set("color", "var(--lumo-error-color)");
+            detailLayout.add(header, emailLabel, nameLabel, roleLabel, statusLabel, expiresLabel,
+                invitedByLabel, createdLabel, expiredWarning);
+        } else {
+            detailLayout.add(header, emailLabel, nameLabel, roleLabel, statusLabel, expiresLabel,
+                invitedByLabel, createdLabel);
+        }
+
+        if (selectedInvitation.getStatus() == UserInvitation.InvitationStatus.ACCEPTED) {
+            Span acceptedAtLabel = new Span("Accepted: " + formatter.format(selectedInvitation.getAcceptedAt()));
+            Span acceptedUserLabel = new Span("Accepted by user: " + selectedInvitation.getAcceptedUser().getEmail());
+            detailLayout.add(acceptedAtLabel, acceptedUserLabel);
+        }
+
+        // Actions for pending invitations
+        if (selectedInvitation.getStatus() == UserInvitation.InvitationStatus.PENDING) {
+            HorizontalLayout actions = new HorizontalLayout();
+            actions.addClassNames(LumoUtility.Margin.Top.LARGE);
+
+            Button resendBtn = new Button("Resend Invitation", VaadinIcon.ENVELOPE.create());
+            resendBtn.setEnabled(!selectedInvitation.isExpired());
+            resendBtn.addClickListener(e -> resendInvitation(selectedInvitation));
+
+            Button cancelBtn = new Button("Cancel Invitation", VaadinIcon.CLOSE.create());
+            cancelBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
+            cancelBtn.addClickListener(e -> cancelInvitation(selectedInvitation));
+
+            // Show invitation link
+            Button copyLinkBtn = new Button("Copy Invitation Link", VaadinIcon.LINK.create());
+            copyLinkBtn.setEnabled(!selectedInvitation.isExpired());
+            copyLinkBtn.addClickListener(e -> {
+                String url = invitationService.getInvitationUrl(selectedInvitation);
+                com.vaadin.flow.component.UI.getCurrent().getPage()
+                    .executeJs("navigator.clipboard.writeText($0)", url);
+                Notification.show("Invitation link copied to clipboard", 3000, Notification.Position.BOTTOM_START)
+                    .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+            });
+
+            actions.add(resendBtn, copyLinkBtn, cancelBtn);
+            detailLayout.add(actions);
+        }
+    }
+
     private void refreshGrid() {
         Company company = companyContextService.getCurrentCompany();
         List<CompanyMembership> memberships = userService.getMembershipsByCompany(company);
         membershipGrid.setItems(memberships);
+    }
+
+    private void refreshInvitationsGrid() {
+        Company company = companyContextService.getCurrentCompany();
+        List<UserInvitation> invitations = invitationService.getInvitationsByCompany(company);
+        invitationsGrid.setItems(invitations);
     }
 
     private void showAddUserDialog() {
@@ -298,9 +469,84 @@ public class UsersView extends VerticalLayout {
         dialog.open();
     }
 
-    private void showInviteDialog() {
+    private void showInviteByEmailDialog() {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Invite Existing User to Company");
+        dialog.setHeaderTitle("Invite User by Email");
+        dialog.setWidth("450px");
+
+        FormLayout form = new FormLayout();
+
+        EmailField emailField = new EmailField("Email Address");
+        emailField.setRequired(true);
+        emailField.setWidthFull();
+        emailField.setHelperText("An invitation link will be sent to this email");
+
+        TextField nameField = new TextField("Name (Optional)");
+        nameField.setWidthFull();
+        nameField.setHelperText("Pre-fill the user's name for their account");
+
+        ComboBox<Role> roleCombo = new ComboBox<>("Role");
+        roleCombo.setWidthFull();
+        roleCombo.setItemLabelGenerator(Role::getName);
+        roleCombo.setItems(roleService.findAvailableRolesForCompany(companyContextService.getCurrentCompany()));
+        roleCombo.setRequired(true);
+
+        form.add(emailField, nameField, roleCombo);
+        dialog.add(form);
+
+        Span infoText = new Span("The recipient will receive an email with a link to create their account " +
+            "(for new users) or join this company (for existing users). The invitation expires in 7 days.");
+        infoText.getStyle().set("font-size", "var(--lumo-font-size-s)");
+        infoText.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        dialog.add(infoText);
+
+        Button sendBtn = new Button("Send Invitation", e -> {
+            if (emailField.isEmpty() || roleCombo.isEmpty()) {
+                Notification.show("Please fill all required fields", 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                return;
+            }
+
+            try {
+                User currentUser = companyContextService.getCurrentUser();
+                Company company = companyContextService.getCurrentCompany();
+                String displayName = nameField.getValue().isBlank() ? null : nameField.getValue().trim();
+
+                InvitationResult result = invitationService.createInvitation(
+                    emailField.getValue(),
+                    displayName,
+                    company,
+                    roleCombo.getValue(),
+                    currentUser
+                );
+
+                if (result.success()) {
+                    Notification.show("Invitation sent to " + emailField.getValue(), 3000, Notification.Position.BOTTOM_START)
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    dialog.close();
+                    refreshInvitationsGrid();
+                    // Switch to invitations tab
+                    tabSheet.setSelectedIndex(1);
+                } else {
+                    Notification.show(result.message(), 5000, Notification.Position.MIDDLE)
+                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                }
+            } catch (Exception ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+        sendBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        Button cancelBtn = new Button("Cancel", e -> dialog.close());
+
+        dialog.getFooter().add(cancelBtn, sendBtn);
+        dialog.open();
+    }
+
+    private void showInviteExistingUserDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Add Existing User to Company");
         dialog.setWidth("400px");
 
         FormLayout form = new FormLayout();
@@ -308,7 +554,7 @@ public class UsersView extends VerticalLayout {
         EmailField emailField = new EmailField("User Email");
         emailField.setRequired(true);
         emailField.setWidthFull();
-        emailField.setHelperText("Enter the email of an existing user");
+        emailField.setHelperText("Enter the email of an existing MoniWorks user");
 
         ComboBox<Role> roleCombo = new ComboBox<>("Role");
         roleCombo.setWidthFull();
@@ -319,7 +565,7 @@ public class UsersView extends VerticalLayout {
         form.add(emailField, roleCombo);
         dialog.add(form);
 
-        Button inviteBtn = new Button("Invite", e -> {
+        Button inviteBtn = new Button("Add to Company", e -> {
             if (emailField.isEmpty() || roleCombo.isEmpty()) {
                 Notification.show("Please fill all required fields", 3000, Notification.Position.MIDDLE)
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
@@ -332,7 +578,7 @@ public class UsersView extends VerticalLayout {
 
                 userService.addToCompany(user, companyContextService.getCurrentCompany(), roleCombo.getValue());
 
-                Notification.show("User invited successfully", 3000, Notification.Position.BOTTOM_START)
+                Notification.show("User added to company", 3000, Notification.Position.BOTTOM_START)
                     .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
                 dialog.close();
                 refreshGrid();
@@ -347,6 +593,35 @@ public class UsersView extends VerticalLayout {
 
         dialog.getFooter().add(cancelBtn, inviteBtn);
         dialog.open();
+    }
+
+    private void resendInvitation(UserInvitation invitation) {
+        User currentUser = companyContextService.getCurrentUser();
+        InvitationResult result = invitationService.resendInvitation(invitation, currentUser);
+
+        if (result.success()) {
+            Notification.show("Invitation resent to " + invitation.getEmail(), 3000, Notification.Position.BOTTOM_START)
+                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+        } else {
+            Notification.show(result.message(), 5000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
+    }
+
+    private void cancelInvitation(UserInvitation invitation) {
+        User currentUser = companyContextService.getCurrentUser();
+        InvitationResult result = invitationService.cancelInvitation(invitation, currentUser);
+
+        if (result.success()) {
+            Notification.show("Invitation cancelled", 3000, Notification.Position.BOTTOM_START)
+                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+            refreshInvitationsGrid();
+            selectedInvitation = null;
+            updateDetailLayout();
+        } else {
+            Notification.show(result.message(), 5000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
     }
 
     private void showChangeRoleDialog(CompanyMembership membership) {
