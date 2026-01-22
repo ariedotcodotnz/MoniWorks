@@ -2,14 +2,15 @@
 
 ## Current Status
 - Project initialized with Spring Boot 4.0.1, Vaadin 25.0.3, Java 21
-- **Phase 1 Foundation COMPLETE**
+- **Phase 1 Foundation COMPLETE** - Tag: 0.0.1
+- All 13 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, Department, Role, Permission, CompanyMembership, AuditEvent
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migration V1__initial_schema.sql created
 - All repository interfaces created
 - Basic service layer implemented: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService
 - Vaadin UI shell with MainLayout, LoginView, DashboardView, TransactionsView, AccountsView
-- Security configuration with SecurityConfig and UserDetailsServiceImpl
+- Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
 Per specs, Release 1 must deliver:
@@ -64,7 +65,12 @@ Per specs, Release 1 must deliver:
 ## Known Issues
 - Phase 2 entities created early in Phase 1 - need to build out full CRUD UI
 - Posting service needs business logic completion
-- Need to add tests for all services
+- Need to add more integration tests
+
+## Lessons Learned
+- VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
+- Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
+- AuditService should create its own ObjectMapper rather than injecting as bean for test isolation
 
 ## Technical Notes
 - Build: `./mvnw clean compile`
