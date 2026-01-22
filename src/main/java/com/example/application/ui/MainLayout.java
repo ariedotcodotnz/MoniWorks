@@ -15,6 +15,7 @@ import com.example.application.ui.views.ProductsView;
 import com.example.application.ui.views.RecurringTemplatesView;
 import com.example.application.ui.views.ReportsView;
 import com.example.application.ui.views.SalesInvoicesView;
+import com.example.application.ui.views.StatementRunsView;
 import com.example.application.ui.views.SupplierBillsView;
 import com.example.application.ui.views.TaxCodesView;
 import com.example.application.ui.views.TransactionsView;
@@ -112,6 +113,8 @@ public class MainLayout extends AppLayout {
             VaadinIcon.EXCHANGE.create()));
         nav.addItem(new SideNavItem("Sales Invoices", SalesInvoicesView.class,
             VaadinIcon.INVOICE.create()));
+        nav.addItem(new SideNavItem("Statement Runs", StatementRunsView.class,
+            VaadinIcon.PRINT.create()));
         nav.addItem(new SideNavItem("Supplier Bills", SupplierBillsView.class,
             VaadinIcon.RECORDS.create()));
         nav.addItem(new SideNavItem("Contacts", ContactsView.class,

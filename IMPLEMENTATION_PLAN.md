@@ -18,13 +18,14 @@
 - **Phase 13a Receipt Allocation UI COMPLETE** - Tag: 0.2.2
 - **Phase 13b Payment Allocation UI COMPLETE** - Tag: 0.2.3
 - **Phase 13c Statement Runs COMPLETE** - Tag: 0.2.4
+- **Phase 13d Statement Runs UI COMPLETE** - Tag: 0.2.5
 - All 70 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql
 - All repository interfaces created (38 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService
-- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView
+- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
@@ -372,6 +373,24 @@ Per specs, Release 1 must deliver:
   - Audit logging for run creation, completion, and failures
   - Added STATEMENT_RUN to AttachmentLink.EntityType enum
 
+### Phase 13d: Statement Runs UI (COMPLETE) - Tag: 0.2.5
+- [x] StatementRunsView UI for batch statement generation (spec 09)
+  - Created StatementRunsView with master-detail split layout
+  - Grid showing all statement runs with status, date, count, created by
+  - Status filter dropdown (PENDING/PROCESSING/COMPLETED/FAILED)
+  - Create Statement Run dialog with:
+    - As Of Date picker
+    - Minimum Balance filter
+    - Minimum Days Overdue filter
+    - Include Zero Balance checkbox
+    - Customer multi-select (optional, for specific customers)
+    - Preview button showing which customers will be included
+  - Process Now button for pending runs
+  - Download PDF button for completed runs
+  - Detail panel showing run info, criteria, and status
+  - Added Statement Runs navigation to MainLayout with PRINT icon
+- [x] User.getDisplayName() used instead of getFullName() (lesson learned)
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -410,6 +429,7 @@ Per specs, Release 1 must deliver:
 - Statement generation uses findOutstandingByCompanyAndContact which filters by balance > 0 already
 - AR/AP Aging reports categorize by days overdue using ChronoUnit.DAYS.between(dueDate, asOfDate)
 - Vaadin Grid Column does not have setClassNameGenerator() method - use Grid.setClassNameGenerator() on the grid instead
+- User entity uses getDisplayName() not getFullName() for user's display name
 
 ## Technical Notes
 - Build: `./mvnw compile`
