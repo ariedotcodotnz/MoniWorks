@@ -12,6 +12,7 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
@@ -25,8 +26,10 @@ import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.security.PermitAll;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
@@ -44,6 +47,7 @@ import java.util.List;
 public class ReportsView extends VerticalLayout {
 
     private final ReportingService reportingService;
+    private final ReportExportService reportExportService;
     private final CompanyContextService companyContextService;
     private final FiscalYearService fiscalYearService;
     private final DepartmentService departmentService;
@@ -65,15 +69,29 @@ public class ReportsView extends VerticalLayout {
     private ComboBox<Budget> bvaBudgetSelect;
     private ComboBox<Department> bvaDepartmentFilter;
 
+    // Export button containers to hold current download links
+    private HorizontalLayout tbExportButtons;
+    private HorizontalLayout plExportButtons;
+    private HorizontalLayout bsExportButtons;
+    private HorizontalLayout bvaExportButtons;
+
+    // Current report data for exports
+    private TrialBalance currentTrialBalance;
+    private ProfitAndLoss currentProfitAndLoss;
+    private BalanceSheet currentBalanceSheet;
+    private BudgetVsActual currentBudgetVsActual;
+
     private static final DecimalFormat MONEY_FORMAT = new DecimalFormat("#,##0.00");
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy");
 
     public ReportsView(ReportingService reportingService,
+                       ReportExportService reportExportService,
                        CompanyContextService companyContextService,
                        FiscalYearService fiscalYearService,
                        DepartmentService departmentService,
                        BudgetService budgetService) {
         this.reportingService = reportingService;
+        this.reportExportService = reportExportService;
         this.companyContextService = companyContextService;
         this.fiscalYearService = fiscalYearService;
         this.departmentService = departmentService;
@@ -180,7 +198,12 @@ public class ReportsView extends VerticalLayout {
         generateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         generateBtn.addClickListener(e -> loadTrialBalance());
 
-        HorizontalLayout controls = new HorizontalLayout(startDatePicker, endDatePicker, generateBtn);
+        // Export buttons container
+        tbExportButtons = new HorizontalLayout();
+        tbExportButtons.setSpacing(true);
+        tbExportButtons.setVisible(false);
+
+        HorizontalLayout controls = new HorizontalLayout(startDatePicker, endDatePicker, generateBtn, tbExportButtons);
         controls.setAlignItems(FlexComponent.Alignment.BASELINE);
         controls.setSpacing(true);
 
@@ -219,7 +242,12 @@ public class ReportsView extends VerticalLayout {
         generateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         generateBtn.addClickListener(e -> loadProfitAndLoss());
 
-        HorizontalLayout controls = new HorizontalLayout(plStartDate, plEndDate, plDepartmentFilter, generateBtn);
+        // Export buttons container
+        plExportButtons = new HorizontalLayout();
+        plExportButtons.setSpacing(true);
+        plExportButtons.setVisible(false);
+
+        HorizontalLayout controls = new HorizontalLayout(plStartDate, plEndDate, plDepartmentFilter, generateBtn, plExportButtons);
         controls.setAlignItems(FlexComponent.Alignment.BASELINE);
         controls.setSpacing(true);
 
@@ -241,7 +269,12 @@ public class ReportsView extends VerticalLayout {
         generateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         generateBtn.addClickListener(e -> loadBalanceSheet());
 
-        HorizontalLayout controls = new HorizontalLayout(asOfDatePicker, generateBtn);
+        // Export buttons container
+        bsExportButtons = new HorizontalLayout();
+        bsExportButtons.setSpacing(true);
+        bsExportButtons.setVisible(false);
+
+        HorizontalLayout controls = new HorizontalLayout(asOfDatePicker, generateBtn, bsExportButtons);
         controls.setAlignItems(FlexComponent.Alignment.BASELINE);
         controls.setSpacing(true);
 
@@ -274,6 +307,8 @@ public class ReportsView extends VerticalLayout {
 
     private void displayTrialBalance(TrialBalance report) {
         trialBalanceContent.removeAll();
+        currentTrialBalance = report;
+        updateTrialBalanceExportButtons();
 
         // Report header
         H3 header = new H3("Trial Balance");
@@ -367,6 +402,8 @@ public class ReportsView extends VerticalLayout {
 
     private void displayProfitAndLoss(ProfitAndLoss report) {
         profitLossContent.removeAll();
+        currentProfitAndLoss = report;
+        updateProfitAndLossExportButtons();
 
         // Report header
         H3 header = new H3("Profit & Loss Statement");
@@ -483,6 +520,8 @@ public class ReportsView extends VerticalLayout {
 
     private void displayBalanceSheet(BalanceSheet report) {
         balanceSheetContent.removeAll();
+        currentBalanceSheet = report;
+        updateBalanceSheetExportButtons();
 
         // Report header
         H3 header = new H3("Balance Sheet");
@@ -614,8 +653,13 @@ public class ReportsView extends VerticalLayout {
         generateBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         generateBtn.addClickListener(e -> loadBudgetVsActual());
 
+        // Export buttons container
+        bvaExportButtons = new HorizontalLayout();
+        bvaExportButtons.setSpacing(true);
+        bvaExportButtons.setVisible(false);
+
         HorizontalLayout controls = new HorizontalLayout(bvaStartDate, bvaEndDate,
-            bvaBudgetSelect, bvaDepartmentFilter, generateBtn);
+            bvaBudgetSelect, bvaDepartmentFilter, generateBtn, bvaExportButtons);
         controls.setAlignItems(FlexComponent.Alignment.BASELINE);
         controls.setSpacing(true);
 
@@ -657,6 +701,8 @@ public class ReportsView extends VerticalLayout {
 
     private void displayBudgetVsActual(BudgetVsActual report) {
         budgetVsActualContent.removeAll();
+        currentBudgetVsActual = report;
+        updateBudgetVsActualExportButtons();
 
         // Report header
         H3 header = new H3("Budget vs Actual Report");
@@ -746,5 +792,167 @@ public class ReportsView extends VerticalLayout {
     private String formatPercent(BigDecimal percent) {
         if (percent == null) return "0.0%";
         return MONEY_FORMAT.format(percent) + "%";
+    }
+
+    // ==================== EXPORT BUTTON METHODS ====================
+
+    private void updateTrialBalanceExportButtons() {
+        tbExportButtons.removeAll();
+        if (currentTrialBalance == null) {
+            tbExportButtons.setVisible(false);
+            return;
+        }
+
+        Company company = companyContextService.getCurrentCompany();
+        String dateStr = currentTrialBalance.endDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // PDF Export
+        StreamResource pdfResource = new StreamResource(
+            "TrialBalance_" + dateStr + ".pdf",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportTrialBalanceToPdf(currentTrialBalance, company)
+            )
+        );
+        Anchor pdfLink = new Anchor(pdfResource, "");
+        pdfLink.getElement().setAttribute("download", true);
+        Button pdfBtn = new Button("PDF", VaadinIcon.FILE_TEXT.create());
+        pdfBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        pdfLink.add(pdfBtn);
+
+        // Excel Export
+        StreamResource excelResource = new StreamResource(
+            "TrialBalance_" + dateStr + ".xlsx",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportTrialBalanceToExcel(currentTrialBalance, company)
+            )
+        );
+        Anchor excelLink = new Anchor(excelResource, "");
+        excelLink.getElement().setAttribute("download", true);
+        Button excelBtn = new Button("Excel", VaadinIcon.FILE_TABLE.create());
+        excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        excelLink.add(excelBtn);
+
+        tbExportButtons.add(pdfLink, excelLink);
+        tbExportButtons.setVisible(true);
+    }
+
+    private void updateProfitAndLossExportButtons() {
+        plExportButtons.removeAll();
+        if (currentProfitAndLoss == null) {
+            plExportButtons.setVisible(false);
+            return;
+        }
+
+        Company company = companyContextService.getCurrentCompany();
+        String dateStr = currentProfitAndLoss.endDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // PDF Export
+        StreamResource pdfResource = new StreamResource(
+            "ProfitAndLoss_" + dateStr + ".pdf",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportProfitAndLossToPdf(currentProfitAndLoss, company)
+            )
+        );
+        Anchor pdfLink = new Anchor(pdfResource, "");
+        pdfLink.getElement().setAttribute("download", true);
+        Button pdfBtn = new Button("PDF", VaadinIcon.FILE_TEXT.create());
+        pdfBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        pdfLink.add(pdfBtn);
+
+        // Excel Export
+        StreamResource excelResource = new StreamResource(
+            "ProfitAndLoss_" + dateStr + ".xlsx",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportProfitAndLossToExcel(currentProfitAndLoss, company)
+            )
+        );
+        Anchor excelLink = new Anchor(excelResource, "");
+        excelLink.getElement().setAttribute("download", true);
+        Button excelBtn = new Button("Excel", VaadinIcon.FILE_TABLE.create());
+        excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        excelLink.add(excelBtn);
+
+        plExportButtons.add(pdfLink, excelLink);
+        plExportButtons.setVisible(true);
+    }
+
+    private void updateBalanceSheetExportButtons() {
+        bsExportButtons.removeAll();
+        if (currentBalanceSheet == null) {
+            bsExportButtons.setVisible(false);
+            return;
+        }
+
+        Company company = companyContextService.getCurrentCompany();
+        String dateStr = currentBalanceSheet.asOfDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // PDF Export
+        StreamResource pdfResource = new StreamResource(
+            "BalanceSheet_" + dateStr + ".pdf",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportBalanceSheetToPdf(currentBalanceSheet, company)
+            )
+        );
+        Anchor pdfLink = new Anchor(pdfResource, "");
+        pdfLink.getElement().setAttribute("download", true);
+        Button pdfBtn = new Button("PDF", VaadinIcon.FILE_TEXT.create());
+        pdfBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        pdfLink.add(pdfBtn);
+
+        // Excel Export
+        StreamResource excelResource = new StreamResource(
+            "BalanceSheet_" + dateStr + ".xlsx",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportBalanceSheetToExcel(currentBalanceSheet, company)
+            )
+        );
+        Anchor excelLink = new Anchor(excelResource, "");
+        excelLink.getElement().setAttribute("download", true);
+        Button excelBtn = new Button("Excel", VaadinIcon.FILE_TABLE.create());
+        excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        excelLink.add(excelBtn);
+
+        bsExportButtons.add(pdfLink, excelLink);
+        bsExportButtons.setVisible(true);
+    }
+
+    private void updateBudgetVsActualExportButtons() {
+        bvaExportButtons.removeAll();
+        if (currentBudgetVsActual == null) {
+            bvaExportButtons.setVisible(false);
+            return;
+        }
+
+        Company company = companyContextService.getCurrentCompany();
+        String dateStr = currentBudgetVsActual.endDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        // PDF Export
+        StreamResource pdfResource = new StreamResource(
+            "BudgetVsActual_" + dateStr + ".pdf",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportBudgetVsActualToPdf(currentBudgetVsActual, company)
+            )
+        );
+        Anchor pdfLink = new Anchor(pdfResource, "");
+        pdfLink.getElement().setAttribute("download", true);
+        Button pdfBtn = new Button("PDF", VaadinIcon.FILE_TEXT.create());
+        pdfBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        pdfLink.add(pdfBtn);
+
+        // Excel Export
+        StreamResource excelResource = new StreamResource(
+            "BudgetVsActual_" + dateStr + ".xlsx",
+            () -> new ByteArrayInputStream(
+                reportExportService.exportBudgetVsActualToExcel(currentBudgetVsActual, company)
+            )
+        );
+        Anchor excelLink = new Anchor(excelResource, "");
+        excelLink.getElement().setAttribute("download", true);
+        Button excelBtn = new Button("Excel", VaadinIcon.FILE_TABLE.create());
+        excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        excelLink.add(excelBtn);
+
+        bvaExportButtons.add(pdfLink, excelLink);
+        bvaExportButtons.setVisible(true);
     }
 }

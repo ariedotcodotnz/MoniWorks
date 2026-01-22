@@ -10,12 +10,13 @@
 - **Phase 6 A/R and A/P COMPLETE** - Tag: 0.1.2
 - **Phase 7 Budgeting & Departments COMPLETE** - Tag: 0.1.4
 - **Phase 8 Recurring Transactions COMPLETE** - Tag: 0.1.5
+- **Phase 9 Report Export IN PROGRESS** - Tag: 0.1.6
 - All 37 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql
 - All repository interfaces created (37 repositories)
-- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService
+- Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
@@ -205,8 +206,17 @@ Per specs, Release 1 must deliver:
     - Create template dialog with JSON payload editor
   - Added Recurring navigation to MainLayout with TIME_FORWARD icon
 
-### Phase 9: Remaining Features (PENDING)
-- [ ] PDF/Excel export for all reports (spec 13)
+### Phase 9: Report Export & Search (IN PROGRESS) - Tag: 0.1.6
+- [x] PDF/Excel export for all reports (spec 13)
+  - Added Apache POI dependency (poi-ooxml 5.2.5) for Excel export
+  - Created ReportExportService with PDF and Excel export methods for:
+    - Trial Balance (PDF with balance status, Excel with full formatting)
+    - Profit & Loss (PDF with sections, Excel with income/expense breakdowns)
+    - Balance Sheet (PDF with assets/liabilities/equity sections, Excel format)
+    - Budget vs Actual (PDF landscape format, Excel with variance calculations)
+  - Updated ReportsView with export buttons (PDF and Excel) for all report tabs
+  - Export buttons appear after generating a report
+  - Uses StreamResource and Anchor for browser download functionality
 - [ ] Global search with query expressions (spec 15)
 - [ ] Saved views and grid customization (spec 15)
 - [ ] Email sending integration (spec 13)
@@ -234,6 +244,9 @@ Per specs, Release 1 must deliver:
 - AuditService.logEvent signature: (Company, User, String eventType, String entityType, Long entityId, String summary) - use strings not enums
 - @Scheduled annotation requires Spring's scheduling to be enabled (@EnableScheduling on Application class)
 - JSON payload serialization for recurring templates uses Jackson ObjectMapper with ObjectNode/ArrayNode builders
+- When using both OpenPDF and Apache POI, fully qualify Row/Cell/Font classes to avoid ambiguity (use org.apache.poi.ss.usermodel.Row, etc.)
+- Apache POI (poi-ooxml) used for Excel export - provides XSSFWorkbook for .xlsx format
+- StreamResource with Anchor and download attribute creates browser download functionality in Vaadin
 
 ## Technical Notes
 - Build: `./mvnw compile`
