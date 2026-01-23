@@ -1,5 +1,6 @@
 package com.example.application.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 import jakarta.persistence.*;
@@ -53,6 +54,20 @@ public class AllocationRule {
   @Size(max = 255)
   @Column(name = "memo_template", length = 255)
   private String memoTemplate;
+
+  /**
+   * Minimum amount (inclusive) for this rule to match. If null, no minimum constraint. Per spec 05:
+   * "rules can match on description, amount ranges, counterparty, etc."
+   */
+  @Column(name = "min_amount", precision = 19, scale = 2)
+  private BigDecimal minAmount;
+
+  /**
+   * Maximum amount (inclusive) for this rule to match. If null, no maximum constraint. Per spec 05:
+   * "rules can match on description, amount ranges, counterparty, etc."
+   */
+  @Column(name = "max_amount", precision = 19, scale = 2)
+  private BigDecimal maxAmount;
 
   @Column(nullable = false)
   private boolean enabled = true;
@@ -150,6 +165,22 @@ public class AllocationRule {
     this.memoTemplate = memoTemplate;
   }
 
+  public BigDecimal getMinAmount() {
+    return minAmount;
+  }
+
+  public void setMinAmount(BigDecimal minAmount) {
+    this.minAmount = minAmount;
+  }
+
+  public BigDecimal getMaxAmount() {
+    return maxAmount;
+  }
+
+  public void setMaxAmount(BigDecimal maxAmount) {
+    this.maxAmount = maxAmount;
+  }
+
   public boolean isEnabled() {
     return enabled;
   }
@@ -168,9 +199,43 @@ public class AllocationRule {
 
   /**
    * Tests if the given description matches this rule's expression. Currently supports simple
-   * CONTAINS matching.
+   * CONTAINS matching. Does not check amount constraints - use {@link #matches(String, BigDecimal)}
+   * for full matching including amount range.
    */
   public boolean matches(String description) {
+    return matches(description, null);
+  }
+
+  /**
+   * Tests if the given description and amount match this rule. Per spec 05: "rules can match on
+   * description, amount ranges, counterparty, etc."
+   *
+   * <p>Supports:
+   *
+   * <ul>
+   *   <li>Description matching via CONTAINS or simple substring
+   *   <li>Amount range matching via minAmount/maxAmount (uses absolute value)
+   * </ul>
+   *
+   * @param description The bank feed item description to match against
+   * @param amount The transaction amount (can be positive or negative; absolute value is used)
+   * @return true if the rule matches both description and amount constraints
+   */
+  public boolean matches(String description, BigDecimal amount) {
+    // First check description match
+    if (!matchesDescription(description)) {
+      return false;
+    }
+
+    // Then check amount range if specified
+    if (!matchesAmount(amount)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private boolean matchesDescription(String description) {
     if (description == null || matchExpression == null) {
       return false;
     }
@@ -190,5 +255,58 @@ public class AllocationRule {
 
     // Default: simple contains
     return description.toLowerCase().contains(expr.toLowerCase());
+  }
+
+  /**
+   * Tests if the given amount falls within this rule's amount range. Uses absolute value to allow
+   * matching both inflows (positive) and outflows (negative).
+   *
+   * @param amount The amount to check (can be null, positive, or negative)
+   * @return true if amount is within range or no range constraints are set
+   */
+  private boolean matchesAmount(BigDecimal amount) {
+    // If no amount constraints, always match
+    if (minAmount == null && maxAmount == null) {
+      return true;
+    }
+
+    // If amount is provided, check against constraints using absolute value
+    if (amount != null) {
+      BigDecimal absAmount = amount.abs();
+
+      if (minAmount != null && absAmount.compareTo(minAmount) < 0) {
+        return false;
+      }
+      if (maxAmount != null && absAmount.compareTo(maxAmount) > 0) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Applies the memo template to generate a memo for a transaction. Supports placeholder
+   * substitution:
+   *
+   * <ul>
+   *   <li>{description} - replaced with original bank description
+   *   <li>{amount} - replaced with transaction amount
+   *   <li>{date} - replaced with transaction date (if provided)
+   * </ul>
+   *
+   * @param description The original bank feed item description
+   * @param amount The transaction amount
+   * @return The processed memo, or the original description if no template is set
+   */
+  public String applyMemoTemplate(String description, BigDecimal amount) {
+    if (memoTemplate == null || memoTemplate.isBlank()) {
+      return description;
+    }
+
+    String result = memoTemplate;
+    result = result.replace("{description}", description != null ? description : "");
+    result = result.replace("{amount}", amount != null ? amount.toPlainString() : "");
+    return result;
   }
 }

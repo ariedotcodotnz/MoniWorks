@@ -49,10 +49,11 @@
 - **Phase 41 Complete Bank Reconciliation Integration COMPLETE** - Tag: 0.5.3
 - **Phase 42 Credit Note Voiding COMPLETE** - Tag: 0.5.4
 - **Phase 44 Split Transaction for Bank Reconciliation COMPLETE** - Tag: 0.5.6
-- All 195 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13)
+- **Phase 45 Allocation Rule Enhancements COMPLETE** - Tag: 0.5.7
+- All 219 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql, V19__reconciliation_match.sql, V20__ledger_entry_reconciliation.sql
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql, V19__reconciliation_match.sql, V20__ledger_entry_reconciliation.sql, V21__allocation_rule_amount_range.sql
 - All repository interfaces created (42 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService, InvitationService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView, RolesView, CompanySettingsView
@@ -1221,6 +1222,32 @@ Per specs, Release 1 must deliver:
 - [x] All 195 tests passing (BankImportServiceTest: 13)
 - [x] No forbidden markers
 
+### Phase 45: Allocation Rule Enhancements (COMPLETE) - Tag: 0.5.7
+- [x] Amount range matching for allocation rules (spec 05)
+  - Per spec 05: "rules can match on description, amount ranges, counterparty, etc."
+  - Added minAmount and maxAmount fields to AllocationRule entity
+  - Created V21__allocation_rule_amount_range.sql migration
+  - Updated matches() method to support amount range checking (uses absolute value)
+  - Both description AND amount must match for rule to apply
+- [x] Memo template application
+  - Allocation rules now use memoTemplate field (already existed but wasn't being used)
+  - Added applyMemoTemplate() method supporting placeholders: {description}, {amount}
+  - BankReconciliationView now applies memo template when creating transactions from bank items
+- [x] UI enhancements
+  - AllocationRulesView now has minAmount and maxAmount fields in the form
+  - Test Rules dialog now accepts optional amount for testing amount range rules
+  - Updated help text to explain placeholders
+- [x] BankImportService enhancements
+  - findMatchingRule() now has overloaded version accepting amount parameter
+  - BankReconciliationView passes amount for amount-aware rule matching
+- [x] AllocationRuleTest with 24 unit tests covering:
+  - Description matching (simple contains, CONTAINS keyword, null handling)
+  - Amount range matching (min only, max only, range, negative amounts/absolute value)
+  - Memo template application (placeholders, null handling)
+  - Combined matching scenarios
+- [x] All 219 tests passing (AllocationRuleTest: 24)
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1296,6 +1323,7 @@ Per specs, Release 1 must deliver:
 - Account.setBankAccount(boolean) not setIsBankAccount(); Transaction.setTransactionDate(LocalDate) not setDate()
 - Overpayment handling: ReceivableAllocationService and PayableAllocationService allow allocations exceeding invoice/bill balance - creates negative balance (customer/supplier credit)
 - Split transaction pattern: Use Java records for validated DTOs (SplitAllocation), with Objects.requireNonNull and validation in compact constructor; BankFeedItem.SPLIT status is separate from MATCHED/CREATED to distinguish split allocations
+- AllocationRule.matches() now has overloaded version matches(description, amount) that checks both description and amount range; uses absolute value for amount comparison to handle both inflows and outflows
 
 ## Technical Notes
 - Build: `./mvnw compile`

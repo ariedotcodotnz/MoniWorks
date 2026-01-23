@@ -242,10 +242,10 @@ public class BankReconciliationView extends VerticalLayout {
     infoSection.add(createInfoRow("Description", item.getDescription()));
     infoSection.add(createInfoRow("Status", item.getStatus().name()));
 
-    // Check for suggested allocation
+    // Check for suggested allocation - now includes amount range matching per spec 05
     Company company = companyContextService.getCurrentCompany();
     Optional<AllocationRule> suggestedRule =
-        bankImportService.findMatchingRule(company, item.getDescription());
+        bankImportService.findMatchingRule(company, item.getDescription(), item.getAmount());
 
     if (suggestedRule.isPresent()) {
       AllocationRule rule = suggestedRule.get();
@@ -471,7 +471,12 @@ public class BankReconciliationView extends VerticalLayout {
     datePicker.setRequired(true);
 
     TextField descriptionField = new TextField("Description");
-    descriptionField.setValue(item.getDescription() != null ? item.getDescription() : "");
+    // Apply memo template if available, otherwise use original description
+    String initialDescription = item.getDescription() != null ? item.getDescription() : "";
+    if (suggestedRule != null && suggestedRule.getMemoTemplate() != null) {
+      initialDescription = suggestedRule.applyMemoTemplate(item.getDescription(), item.getAmount());
+    }
+    descriptionField.setValue(initialDescription);
     descriptionField.setWidthFull();
 
     ComboBox<Account> accountCombo = new ComboBox<>("Allocate to Account");

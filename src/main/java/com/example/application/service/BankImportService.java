@@ -580,13 +580,32 @@ public class BankImportService {
     return reconciliationMatchRepository.findByBankFeedItemOrderByMatchedAtDesc(item);
   }
 
-  /** Finds allocation rules that match the given description. */
+  /**
+   * Finds allocation rules that match the given description. This is a convenience method that
+   * delegates to {@link #findMatchingRule(Company, String, BigDecimal)} with null amount.
+   */
   @Transactional(readOnly = true)
   public Optional<AllocationRule> findMatchingRule(Company company, String description) {
+    return findMatchingRule(company, description, null);
+  }
+
+  /**
+   * Finds allocation rules that match the given description and amount. Per spec 05: "rules can
+   * match on description, amount ranges, counterparty, etc."
+   *
+   * @param company The company context
+   * @param description The bank feed item description
+   * @param amount The transaction amount (can be positive or negative; absolute value is used for
+   *     matching)
+   * @return The first matching rule by priority, or empty if no match
+   */
+  @Transactional(readOnly = true)
+  public Optional<AllocationRule> findMatchingRule(
+      Company company, String description, BigDecimal amount) {
     List<AllocationRule> rules = ruleRepository.findEnabledByCompanyOrderByPriority(company);
 
     for (AllocationRule rule : rules) {
-      if (rule.matches(description)) {
+      if (rule.matches(description, amount)) {
         return Optional.of(rule);
       }
     }

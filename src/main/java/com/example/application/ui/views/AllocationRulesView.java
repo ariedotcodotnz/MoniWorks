@@ -27,6 +27,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
+import com.vaadin.flow.component.textfield.BigDecimalField;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
@@ -67,6 +68,8 @@ public class AllocationRulesView extends VerticalLayout {
   private IntegerField priorityField;
   private Checkbox enabledCheckbox;
   private TextField memoTemplateField;
+  private BigDecimalField minAmountField;
+  private BigDecimalField maxAmountField;
 
   private VerticalLayout detailLayout;
   private AllocationRule currentRule;
@@ -267,11 +270,24 @@ public class AllocationRulesView extends VerticalLayout {
 
     memoTemplateField = new TextField("Memo Template (Optional)");
     memoTemplateField.setMaxLength(255);
-    memoTemplateField.setPlaceholder("Optional memo for created transactions");
+    memoTemplateField.setPlaceholder("Use {description} and {amount} placeholders");
+    memoTemplateField.setHelperText("Optional. Placeholders: {description}, {amount}");
+
+    // Amount range fields - per spec 05: "rules can match on description, amount ranges, etc."
+    minAmountField = new BigDecimalField("Min Amount (Optional)");
+    minAmountField.setPlaceholder("No minimum");
+    minAmountField.setHelperText("Minimum transaction amount (inclusive)");
+    minAmountField.setClearButtonVisible(true);
+
+    maxAmountField = new BigDecimalField("Max Amount (Optional)");
+    maxAmountField.setPlaceholder("No maximum");
+    maxAmountField.setHelperText("Maximum transaction amount (inclusive)");
+    maxAmountField.setClearButtonVisible(true);
 
     formLayout.add(ruleNameField, priorityField);
     formLayout.add(matchExpressionField, 2);
     formLayout.add(targetAccountCombo, targetTaxCodeCombo);
+    formLayout.add(minAmountField, maxAmountField);
     formLayout.add(memoTemplateField, enabledCheckbox);
 
     // Buttons
@@ -316,6 +332,14 @@ public class AllocationRulesView extends VerticalLayout {
     binder
         .forField(memoTemplateField)
         .bind(AllocationRule::getMemoTemplate, AllocationRule::setMemoTemplate);
+
+    binder
+        .forField(minAmountField)
+        .bind(AllocationRule::getMinAmount, AllocationRule::setMinAmount);
+
+    binder
+        .forField(maxAmountField)
+        .bind(AllocationRule::getMaxAmount, AllocationRule::setMaxAmount);
 
     detailLayout.add(formLayout, buttonLayout);
 
@@ -456,6 +480,11 @@ public class AllocationRulesView extends VerticalLayout {
     testInput.setWidthFull();
     testInput.setPlaceholder("Enter a bank transaction description to test...");
 
+    BigDecimalField testAmount = new BigDecimalField("Test Amount (Optional)");
+    testAmount.setWidthFull();
+    testAmount.setPlaceholder("Enter an amount to test amount range rules");
+    testAmount.setClearButtonVisible(true);
+
     VerticalLayout resultLayout = new VerticalLayout();
     resultLayout.setPadding(false);
     resultLayout.setSpacing(true);
@@ -478,16 +507,32 @@ public class AllocationRulesView extends VerticalLayout {
 
           boolean foundMatch = false;
           for (AllocationRule rule : rules) {
-            if (rule.matches(description)) {
-              Span matchResult =
-                  new Span(
-                      "Match found: "
-                          + rule.getRuleName()
-                          + " -> Account: "
-                          + rule.getTargetAccount().getCode()
-                          + (rule.getTargetTaxCode() != null
-                              ? ", Tax: " + rule.getTargetTaxCode()
-                              : ""));
+            // Test with both description and amount
+            if (rule.matches(description, testAmount.getValue())) {
+              StringBuilder matchInfo = new StringBuilder();
+              matchInfo
+                  .append("Match found: ")
+                  .append(rule.getRuleName())
+                  .append(" -> Account: ")
+                  .append(rule.getTargetAccount().getCode());
+              if (rule.getTargetTaxCode() != null) {
+                matchInfo.append(", Tax: ").append(rule.getTargetTaxCode());
+              }
+              if (rule.getMinAmount() != null || rule.getMaxAmount() != null) {
+                matchInfo.append(" (Amount range: ");
+                if (rule.getMinAmount() != null) {
+                  matchInfo.append("≥").append(rule.getMinAmount().toPlainString());
+                }
+                if (rule.getMinAmount() != null && rule.getMaxAmount() != null) {
+                  matchInfo.append(" and ");
+                }
+                if (rule.getMaxAmount() != null) {
+                  matchInfo.append("≤").append(rule.getMaxAmount().toPlainString());
+                }
+                matchInfo.append(")");
+              }
+
+              Span matchResult = new Span(matchInfo.toString());
               matchResult
                   .getStyle()
                   .set("color", "var(--lumo-success-text-color)")
@@ -499,7 +544,7 @@ public class AllocationRulesView extends VerticalLayout {
           }
 
           if (!foundMatch) {
-            Span noMatch = new Span("No matching rule found for this description.");
+            Span noMatch = new Span("No matching rule found for this description and amount.");
             noMatch.getStyle().set("color", "var(--lumo-secondary-text-color)");
             resultLayout.add(noMatch);
           }
@@ -507,14 +552,16 @@ public class AllocationRulesView extends VerticalLayout {
 
     Paragraph helpText =
         new Paragraph(
-            "Enter a sample transaction description to see which rule would match. "
-                + "Rules are tested in priority order (highest first).");
+            "Enter a sample transaction description and optional amount to test rule matching. "
+                + "Rules are tested in priority order (highest first). "
+                + "Amount rules check the absolute value of the transaction.");
     helpText
         .getStyle()
         .set("color", "var(--lumo-secondary-text-color)")
         .set("font-size", "var(--lumo-font-size-s)");
 
-    VerticalLayout content = new VerticalLayout(testInput, testBtn, resultLayout, helpText);
+    VerticalLayout content =
+        new VerticalLayout(testInput, testAmount, testBtn, resultLayout, helpText);
     content.setPadding(false);
     content.setSpacing(true);
 
