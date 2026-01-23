@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.application.domain.*;
 import com.example.application.repository.LedgerEntryRepository;
 import com.example.application.repository.PeriodRepository;
+import com.example.application.repository.ReversalLinkRepository;
 import com.example.application.repository.TransactionRepository;
 
 /**
@@ -25,6 +26,7 @@ public class PostingService {
   private final TransactionRepository transactionRepository;
   private final LedgerEntryRepository ledgerEntryRepository;
   private final PeriodRepository periodRepository;
+  private final ReversalLinkRepository reversalLinkRepository;
   private final AuditService auditService;
   private final TaxCalculationService taxCalculationService;
 
@@ -32,11 +34,13 @@ public class PostingService {
       TransactionRepository transactionRepository,
       LedgerEntryRepository ledgerEntryRepository,
       PeriodRepository periodRepository,
+      ReversalLinkRepository reversalLinkRepository,
       AuditService auditService,
       TaxCalculationService taxCalculationService) {
     this.transactionRepository = transactionRepository;
     this.ledgerEntryRepository = ledgerEntryRepository;
     this.periodRepository = periodRepository;
+    this.reversalLinkRepository = reversalLinkRepository;
     this.auditService = auditService;
     this.taxCalculationService = taxCalculationService;
   }
@@ -172,6 +176,52 @@ public class PostingService {
     reversal = transactionRepository.save(reversal);
 
     // Post the reversal
-    return postTransaction(reversal, actor);
+    Transaction postedReversal = postTransaction(reversal, actor);
+
+    // Create ReversalLink to formally link original and reversal transactions
+    ReversalLink link = new ReversalLink(original, postedReversal, actor, reason);
+    reversalLinkRepository.save(link);
+
+    return postedReversal;
+  }
+
+  /**
+   * Checks if a transaction has been reversed.
+   *
+   * @param transaction The transaction to check
+   * @return true if the transaction has been reversed
+   */
+  public boolean isReversed(Transaction transaction) {
+    return reversalLinkRepository.existsByOriginalTransaction(transaction);
+  }
+
+  /**
+   * Checks if a transaction is a reversal of another transaction.
+   *
+   * @param transaction The transaction to check
+   * @return true if this transaction is a reversal
+   */
+  public boolean isReversal(Transaction transaction) {
+    return reversalLinkRepository.existsByReversingTransaction(transaction);
+  }
+
+  /**
+   * Finds the reversal link for a transaction that was reversed.
+   *
+   * @param originalTransaction The original transaction
+   * @return The reversal link if found
+   */
+  public java.util.Optional<ReversalLink> findReversalLink(Transaction originalTransaction) {
+    return reversalLinkRepository.findByOriginalTransaction(originalTransaction);
+  }
+
+  /**
+   * Finds the original transaction if this transaction is a reversal.
+   *
+   * @param reversingTransaction The reversal transaction
+   * @return The reversal link containing the original transaction if found
+   */
+  public java.util.Optional<ReversalLink> findOriginalLink(Transaction reversingTransaction) {
+    return reversalLinkRepository.findByReversingTransaction(reversingTransaction);
   }
 }

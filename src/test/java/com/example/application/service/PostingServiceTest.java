@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.example.application.domain.*;
 import com.example.application.repository.LedgerEntryRepository;
 import com.example.application.repository.PeriodRepository;
+import com.example.application.repository.ReversalLinkRepository;
 import com.example.application.repository.TransactionRepository;
 
 /**
@@ -32,6 +33,8 @@ class PostingServiceTest {
   @Mock private LedgerEntryRepository ledgerEntryRepository;
 
   @Mock private PeriodRepository periodRepository;
+
+  @Mock private ReversalLinkRepository reversalLinkRepository;
 
   @Mock private AuditService auditService;
 
@@ -52,6 +55,7 @@ class PostingServiceTest {
             transactionRepository,
             ledgerEntryRepository,
             periodRepository,
+            reversalLinkRepository,
             auditService,
             taxCalculationService);
 
@@ -204,12 +208,16 @@ class PostingServiceTest {
         .thenReturn(new AuditEvent());
     when(taxCalculationService.createTaxLinesForLedgerEntries(any(), anyList()))
         .thenReturn(new ArrayList<>());
+    when(reversalLinkRepository.save(any(ReversalLink.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     // Act
     Transaction reversal = postingService.reverseTransaction(original, user, "Error correction");
 
     // Assert
     assertEquals(2, reversal.getLines().size());
+    // Verify ReversalLink was created
+    verify(reversalLinkRepository).save(any(ReversalLink.class));
     // Original was: bank credit, expense debit
     // Reversal should be: bank debit, expense credit
     TransactionLine reversedBankLine =

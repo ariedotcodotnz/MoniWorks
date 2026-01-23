@@ -54,6 +54,7 @@
 - **Phase 47 Transaction CSV Import COMPLETE** - Tag: 0.5.9
 - **Phase 48 Email Statements to Customers COMPLETE** - Tag: 0.6.0
 - **Phase 49 Supplier Bill PDF Export COMPLETE** - Tag: 0.6.1
+- **Phase 50 ReversalLink Entity COMPLETE** - Tag: 0.6.2
 - All 255 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1379,6 +1380,31 @@ Per specs, Release 1 must deliver:
 - [x] All 255 tests passing
 - [x] No forbidden markers
 
+### Phase 50: ReversalLink Entity (COMPLETE) - Tag: 0.6.2
+- [x] ReversalLink domain entity (spec 04 domain model)
+  - Created ReversalLink entity per spec 04: "ReversalLink(originalTransactionId, reversingTransactionId)"
+  - Links original transactions to their reversal transactions for formal audit trail
+  - Includes: id, originalTransaction, reversingTransaction, createdAt, createdBy, reason
+  - Unique constraint on (originalTransactionId, reversingTransactionId) pair
+  - Indexes on both foreign keys for query performance
+- [x] V23__reversal_link.sql migration
+  - Creates reversal_link table with foreign keys to transaction table
+  - Adds indexes and unique constraint
+- [x] ReversalLinkRepository with query methods
+  - findByOriginalTransaction() - find reversal of a transaction
+  - findByReversingTransaction() - find what transaction this reversal reversed
+  - existsByOriginalTransaction() - check if transaction has been reversed
+  - existsByReversingTransaction() - check if transaction is a reversal
+- [x] PostingService integration
+  - Updated reverseTransaction() to create ReversalLink when reversing
+  - Added isReversed() method to check if transaction was reversed
+  - Added isReversal() method to check if transaction is a reversal
+  - Added findReversalLink() and findOriginalLink() helper methods
+- [x] PostingServiceTest updated with ReversalLinkRepository mock
+  - Verifies ReversalLink is created when reversing a transaction
+- [x] All 255 tests passing
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1459,6 +1485,7 @@ Per specs, Release 1 must deliver:
 - Transaction CSV import groups lines by date + type + description + reference combination; each unique combo becomes one transaction. Validates balanced entries (debits = credits) before creating transactions.
 - StatementRunService.previewCustomers() can be reused for email dialog to get list of customers matching run criteria; parseCriteriaFromRun() pattern parses JSON back to StatementCriteria for completed runs
 - BillPdfService mirrors InvoicePdfService pattern: same fonts, colors, layout structure, and PdfSettings support for consistent PDF generation across AR and AP documents
+- ReversalLink entity formally tracks reversal relationships between transactions per spec 04 domain model; string-based "REV-" reference tracking in description is kept for backwards compatibility and quick visual identification
 
 ## Technical Notes
 - Build: `./mvnw compile`
