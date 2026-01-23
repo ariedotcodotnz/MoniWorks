@@ -31,13 +31,14 @@
 - **Phase 23 Budget CSV Import COMPLETE** - Tag: 0.3.5
 - **Phase 24 Login Event Tracking COMPLETE** - Tag: 0.3.6
 - **Phase 25 Product CSV Import COMPLETE** - Tag: 0.3.7
+- **Phase 26 Role Management UI COMPLETE** - Tag: 0.3.8
 - All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
 - All repository interfaces created (41 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService, InvitationService
-- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView
+- Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView, RolesView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
 
 ## Release 1 (SLC) - Target Features
@@ -757,6 +758,28 @@ Per specs, Release 1 must deliver:
   - Account code linking
   - Preview mode without saving
   - Sample CSV content generation
+
+### Phase 26: Role Management UI (COMPLETE) - Tag: 0.3.8
+- [x] RolesView for role and permission management (spec 02)
+  - Created RolesView with master-detail split layout
+  - Grid showing all roles (system and custom) with name, description, type badge, permission count
+  - Detail panel showing role info, permissions grouped by category
+  - System roles displayed as read-only with view permissions dialog
+  - Custom roles can be created, edited, and deleted
+- [x] Role CRUD functionality
+  - Create Role dialog with name and description fields
+  - Edit Role dialog for updating name and description
+  - Delete confirmation dialog with warning about user reassignment
+  - All operations use existing RoleService with audit logging
+- [x] Permission management UI
+  - Edit Permissions dialog with all permissions grouped by category
+  - Checkboxes for each permission with descriptions
+  - Select All/None buttons per category for quick selection
+  - View Permissions dialog for system roles (read-only)
+- [x] Navigation integration
+  - Added RolesView to MainLayout navigation under admin menu (KEY icon)
+  - Protected by @RolesAllowed({"ADMIN", "ROLE_ADMIN"}) for admin-only access
+  - Visible only to users with MANAGE_USERS permission (alongside Users menu)
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead

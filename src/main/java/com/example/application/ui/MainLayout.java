@@ -20,6 +20,7 @@ import com.example.application.ui.views.PeriodsView;
 import com.example.application.ui.views.ProductsView;
 import com.example.application.ui.views.RecurringTemplatesView;
 import com.example.application.ui.views.ReportsView;
+import com.example.application.ui.views.RolesView;
 import com.example.application.ui.views.SalesInvoicesView;
 import com.example.application.ui.views.StatementRunsView;
 import com.example.application.ui.views.SupplierBillsView;
@@ -232,6 +233,8 @@ public class MainLayout extends AppLayout {
         if (companyContextService.hasPermission(Permissions.MANAGE_USERS)) {
             nav.addItem(new SideNavItem("Users", UsersView.class,
                 VaadinIcon.GROUP.create()));
+            nav.addItem(new SideNavItem("Roles", RolesView.class,
+                VaadinIcon.KEY.create()));
         }
 
         Scroller scroller = new Scroller(nav);
