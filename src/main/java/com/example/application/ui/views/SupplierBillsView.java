@@ -7,10 +7,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import com.example.application.domain.*;
-import com.example.application.domain.SavedView.EntityType;
 import com.example.application.security.Permissions;
 import com.example.application.service.*;
 import com.example.application.ui.MainLayout;
+import com.example.application.ui.components.AttachmentSection;
 import com.example.application.ui.components.GridCustomizer;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -67,6 +67,7 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
   private final SavedViewService savedViewService;
   private final BillPdfService billPdfService;
   private final CompanyService companyService;
+  private final AttachmentService attachmentService;
 
   private final Grid<SupplierBill> grid = new Grid<>();
   private final TextField searchField = new TextField();
@@ -89,7 +90,8 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
       PayableAllocationService payableAllocationService,
       SavedViewService savedViewService,
       BillPdfService billPdfService,
-      CompanyService companyService) {
+      CompanyService companyService,
+      AttachmentService attachmentService) {
     this.billService = billService;
     this.contactService = contactService;
     this.accountService = accountService;
@@ -100,6 +102,7 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
     this.savedViewService = savedViewService;
     this.billPdfService = billPdfService;
     this.companyService = companyService;
+    this.attachmentService = attachmentService;
 
     addClassName("bills-view");
     setSizeFull();
@@ -262,7 +265,7 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
     User user = companyContextService.getCurrentUser();
     if (company != null && user != null) {
       gridCustomizer =
-          new GridCustomizer<>(grid, EntityType.SUPPLIER_BILL, savedViewService, company, user);
+          new GridCustomizer<>(grid, SavedView.EntityType.SUPPLIER_BILL, savedViewService, company, user);
     }
 
     Button refreshButton = new Button(VaadinIcon.REFRESH.create());
@@ -623,6 +626,18 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
           .set("color", "var(--lumo-secondary-text-color)");
       detailLayout.add(notesSpan);
     }
+
+    // Attachments section
+    Company company = companyContextService.getCurrentCompany();
+    User user = companyContextService.getCurrentUser();
+    AttachmentSection attachmentSection =
+        new AttachmentSection(
+            attachmentService,
+            AttachmentLink.EntityType.BILL,
+            bill.getId(),
+            company,
+            user);
+    detailLayout.add(attachmentSection);
   }
 
   private void addReadOnlyField(FormLayout form, String label, String value) {

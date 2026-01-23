@@ -9,17 +9,20 @@ import java.util.List;
 import java.util.Locale;
 
 import com.example.application.domain.Account;
+import com.example.application.domain.AttachmentLink;
 import com.example.application.domain.Company;
 import com.example.application.domain.Product;
-import com.example.application.domain.SavedView.EntityType;
+import com.example.application.domain.SavedView;
 import com.example.application.domain.User;
 import com.example.application.service.AccountService;
+import com.example.application.service.AttachmentService;
 import com.example.application.service.CompanyContextService;
 import com.example.application.service.ProductImportService;
 import com.example.application.service.ProductService;
 import com.example.application.service.SavedViewService;
 import com.example.application.service.TaxCodeService;
 import com.example.application.ui.MainLayout;
+import com.example.application.ui.components.AttachmentSection;
 import com.example.application.ui.components.GridCustomizer;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -67,6 +70,7 @@ public class ProductsView extends VerticalLayout {
   private final CompanyContextService companyContextService;
   private final SavedViewService savedViewService;
   private final ProductImportService productImportService;
+  private final AttachmentService attachmentService;
 
   private final Grid<Product> grid = new Grid<>();
   private final TextField searchField = new TextField();
@@ -85,13 +89,15 @@ public class ProductsView extends VerticalLayout {
       TaxCodeService taxCodeService,
       CompanyContextService companyContextService,
       SavedViewService savedViewService,
-      ProductImportService productImportService) {
+      ProductImportService productImportService,
+      AttachmentService attachmentService) {
     this.productService = productService;
     this.accountService = accountService;
     this.taxCodeService = taxCodeService;
     this.companyContextService = companyContextService;
     this.savedViewService = savedViewService;
     this.productImportService = productImportService;
+    this.attachmentService = attachmentService;
 
     addClassName("products-view");
     setSizeFull();
@@ -204,7 +210,7 @@ public class ProductsView extends VerticalLayout {
     User user = companyContextService.getCurrentUser();
     if (company != null && user != null) {
       gridCustomizer =
-          new GridCustomizer<>(grid, EntityType.PRODUCT, savedViewService, company, user);
+          new GridCustomizer<>(grid, SavedView.EntityType.PRODUCT, savedViewService, company, user);
     }
 
     Button addButton = new Button("Add Product", VaadinIcon.PLUS.create());
@@ -382,6 +388,18 @@ public class ProductsView extends VerticalLayout {
       noteLayout.add(noteLabel, noteText);
       detailLayout.add(noteLayout);
     }
+
+    // Attachments section
+    Company company = companyContextService.getCurrentCompany();
+    User user = companyContextService.getCurrentUser();
+    AttachmentSection attachmentSection =
+        new AttachmentSection(
+            attachmentService,
+            AttachmentLink.EntityType.PRODUCT,
+            product.getId(),
+            company,
+            user);
+    detailLayout.add(attachmentSection);
   }
 
   private void addReadOnlyField(FormLayout form, String label, String value) {

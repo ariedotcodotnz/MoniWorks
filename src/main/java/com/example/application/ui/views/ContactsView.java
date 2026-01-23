@@ -10,15 +10,16 @@ import java.util.List;
 
 import com.example.application.domain.*;
 import com.example.application.domain.Contact.ContactType;
-import com.example.application.domain.SavedView.EntityType;
 import com.example.application.repository.ContactPersonRepository;
 import com.example.application.service.AccountService;
+import com.example.application.service.AttachmentService;
 import com.example.application.service.CompanyContextService;
 import com.example.application.service.ContactImportService;
 import com.example.application.service.ContactService;
 import com.example.application.service.EmailService;
 import com.example.application.service.SavedViewService;
 import com.example.application.ui.MainLayout;
+import com.example.application.ui.components.AttachmentSection;
 import com.example.application.ui.components.GridCustomizer;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -68,6 +69,7 @@ public class ContactsView extends VerticalLayout {
   private final ContactImportService contactImportService;
   private final EmailService emailService;
   private final ContactPersonRepository contactPersonRepository;
+  private final AttachmentService attachmentService;
 
   private final Grid<Contact> grid = new Grid<>();
   private final TextField searchField = new TextField();
@@ -89,7 +91,8 @@ public class ContactsView extends VerticalLayout {
       SavedViewService savedViewService,
       ContactImportService contactImportService,
       EmailService emailService,
-      ContactPersonRepository contactPersonRepository) {
+      ContactPersonRepository contactPersonRepository,
+      AttachmentService attachmentService) {
     this.contactService = contactService;
     this.accountService = accountService;
     this.companyContextService = companyContextService;
@@ -97,6 +100,7 @@ public class ContactsView extends VerticalLayout {
     this.contactImportService = contactImportService;
     this.emailService = emailService;
     this.contactPersonRepository = contactPersonRepository;
+    this.attachmentService = attachmentService;
 
     addClassName("contacts-view");
     setSizeFull();
@@ -210,7 +214,7 @@ public class ContactsView extends VerticalLayout {
     User user = companyContextService.getCurrentUser();
     if (company != null && user != null) {
       gridCustomizer =
-          new GridCustomizer<>(grid, EntityType.CONTACT, savedViewService, company, user);
+          new GridCustomizer<>(grid, SavedView.EntityType.CONTACT, savedViewService, company, user);
     }
 
     Button addButton = new Button("Add Contact", VaadinIcon.PLUS.create());
@@ -326,9 +330,28 @@ public class ContactsView extends VerticalLayout {
     tabSheet.add("People", createPeopleTab(contact));
     tabSheet.add("Defaults", createDefaultsTab(contact));
     tabSheet.add("Notes", createNotesTab(contact));
+    tabSheet.add("Attachments", createAttachmentsTab(contact));
 
     detailLayout.add(tabSheet);
     detailLayout.expand(tabSheet);
+  }
+
+  private VerticalLayout createAttachmentsTab(Contact contact) {
+    Company company = companyContextService.getCurrentCompany();
+    User user = companyContextService.getCurrentUser();
+    AttachmentSection attachmentSection =
+        new AttachmentSection(
+            attachmentService,
+            AttachmentLink.EntityType.CONTACT,
+            contact.getId(),
+            company,
+            user);
+
+    VerticalLayout layout = new VerticalLayout();
+    layout.setPadding(true);
+    layout.setSizeFull();
+    layout.add(attachmentSection);
+    return layout;
   }
 
   private VerticalLayout createGeneralTab(Contact contact) {

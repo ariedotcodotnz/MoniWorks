@@ -7,10 +7,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import com.example.application.domain.*;
-import com.example.application.domain.SavedView.EntityType;
 import com.example.application.security.Permissions;
 import com.example.application.service.*;
 import com.example.application.ui.MainLayout;
+import com.example.application.ui.components.AttachmentSection;
 import com.example.application.ui.components.GridCustomizer;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -68,6 +68,7 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
   private final EmailService emailService;
   private final ReceivableAllocationService receivableAllocationService;
   private final SavedViewService savedViewService;
+  private final AttachmentService attachmentService;
 
   private final Grid<SalesInvoice> grid = new Grid<>();
   private final TextField searchField = new TextField();
@@ -91,7 +92,8 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
       InvoicePdfService invoicePdfService,
       EmailService emailService,
       ReceivableAllocationService receivableAllocationService,
-      SavedViewService savedViewService) {
+      SavedViewService savedViewService,
+      AttachmentService attachmentService) {
     this.invoiceService = invoiceService;
     this.contactService = contactService;
     this.accountService = accountService;
@@ -103,6 +105,7 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
     this.emailService = emailService;
     this.receivableAllocationService = receivableAllocationService;
     this.savedViewService = savedViewService;
+    this.attachmentService = attachmentService;
 
     addClassName("invoices-view");
     setSizeFull();
@@ -255,7 +258,7 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
     User user = companyContextService.getCurrentUser();
     if (company != null && user != null) {
       gridCustomizer =
-          new GridCustomizer<>(grid, EntityType.SALES_INVOICE, savedViewService, company, user);
+          new GridCustomizer<>(grid, SavedView.EntityType.SALES_INVOICE, savedViewService, company, user);
     }
 
     Button refreshButton = new Button(VaadinIcon.REFRESH.create());
@@ -615,6 +618,18 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
           .set("color", "var(--lumo-secondary-text-color)");
       detailLayout.add(notesSpan);
     }
+
+    // Attachments section
+    Company company = companyContextService.getCurrentCompany();
+    User user = companyContextService.getCurrentUser();
+    AttachmentSection attachmentSection =
+        new AttachmentSection(
+            attachmentService,
+            AttachmentLink.EntityType.INVOICE,
+            invoice.getId(),
+            company,
+            user);
+    detailLayout.add(attachmentSection);
   }
 
   private void addReadOnlyField(FormLayout form, String label, String value) {

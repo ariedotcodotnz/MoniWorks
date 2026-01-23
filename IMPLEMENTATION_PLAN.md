@@ -72,6 +72,7 @@
 - **Phase 65 Price/Description Updates on Recurrence COMPLETE** - Tag: 0.7.7
 - **Phase 66 GST Return Export (PDF/Excel/CSV) COMPLETE** - Tag: 0.7.8
 - **Phase 67 Attachment Company Ownership Verification COMPLETE** - Tag: 0.7.9
+- **Phase 68 Attachment UI for Invoices/Bills/Products/Contacts COMPLETE** - Tag: 0.8.0
 - All 290 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 13, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 32, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21, KPIImportServiceTest: 16, RecurringTemplateServiceTest: 8)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1767,6 +1768,33 @@ Per specs, Release 1 must deliver:
     - getFileContent_DifferentCompany_ThrowsSecurityException
     - getFileContent_NoCompanyContext_ThrowsSecurityException
     - downloadFile_DifferentCompany_ThrowsSecurityException
+- [x] All 290 tests passing
+- [x] No forbidden markers
+
+### Phase 68: Attachment UI for Invoices/Bills/Products/Contacts (COMPLETE) - Tag: 0.8.0
+- [x] Created reusable AttachmentSection UI component for attachment management
+  - Located at src/main/java/com/example/application/ui/components/AttachmentSection.java
+  - Supports file upload (PDF, images) with drag-and-drop
+  - Displays existing attachments with download links
+  - Handles pending attachments for new entities
+  - Uses EntityType enum from AttachmentLink domain
+- [x] Integrated AttachmentSection into SalesInvoicesView
+  - Added AttachmentService dependency to constructor
+  - Attachment section displays after Notes in invoice detail view
+  - Uses EntityType.INVOICE for linking
+- [x] Integrated AttachmentSection into SupplierBillsView
+  - Added AttachmentService dependency to constructor
+  - Attachment section displays after Notes in bill detail view
+  - Uses EntityType.BILL for linking
+- [x] Integrated AttachmentSection into ProductsView
+  - Added AttachmentService dependency to constructor
+  - Attachment section displays after Sticky Note in product detail view
+  - Uses EntityType.PRODUCT for linking
+- [x] Integrated AttachmentSection into ContactsView
+  - Added AttachmentService dependency to constructor
+  - Attachment section added as new "Attachments" tab in tabbed detail view
+  - Uses EntityType.CONTACT for linking
+- [x] Spec 14 compliance: Attachment UI now available on invoices, bills, products, and contacts
 - [x] All 290 tests passing
 - [x] No forbidden markers
 
