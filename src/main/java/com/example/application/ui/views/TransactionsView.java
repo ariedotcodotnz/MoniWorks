@@ -17,6 +17,7 @@ import com.example.application.domain.AttachmentLink.EntityType;
 import com.example.application.domain.SavedView;
 import com.example.application.domain.Transaction.TransactionType;
 import com.example.application.domain.TransactionLine.Direction;
+import com.example.application.security.Permissions;
 import com.example.application.service.*;
 import com.example.application.ui.MainLayout;
 import com.example.application.ui.components.GridCustomizer;
@@ -224,6 +225,11 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     actions.setSpacing(false);
     actions.setPadding(false);
 
+    // Check user permissions for transaction management
+    boolean canCreate = companyContextService.hasPermission(Permissions.CREATE_TRANSACTION);
+    boolean canPost = companyContextService.hasPermission(Permissions.POST_TRANSACTION);
+    boolean canAllocate = companyContextService.hasPermission(Permissions.MANAGE_ALLOCATIONS);
+
     Button viewBtn = new Button(VaadinIcon.EYE.create());
     viewBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
     viewBtn.addClickListener(e -> openViewDialog(transaction));
@@ -231,28 +237,34 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     actions.add(viewBtn);
 
     if (transaction.isDraft()) {
-      Button editBtn = new Button(VaadinIcon.EDIT.create());
-      editBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
-      editBtn.addClickListener(e -> openEditDialog(transaction));
-      editBtn.getElement().setAttribute("title", "Edit");
-      actions.add(editBtn);
+      // Edit/Post/Delete buttons require CREATE_TRANSACTION permission
+      if (canCreate) {
+        Button editBtn = new Button(VaadinIcon.EDIT.create());
+        editBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        editBtn.addClickListener(e -> openEditDialog(transaction));
+        editBtn.getElement().setAttribute("title", "Edit");
+        actions.add(editBtn);
 
-      Button postBtn = new Button(VaadinIcon.CHECK.create());
-      postBtn.addThemeVariants(
-          ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_SUCCESS);
-      postBtn.addClickListener(e -> postTransaction(transaction));
-      postBtn.getElement().setAttribute("title", "Post");
-      actions.add(postBtn);
+        Button deleteBtn = new Button(VaadinIcon.TRASH.create());
+        deleteBtn.addThemeVariants(
+            ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
+        deleteBtn.addClickListener(e -> deleteTransaction(transaction));
+        deleteBtn.getElement().setAttribute("title", "Delete");
+        actions.add(deleteBtn);
+      }
 
-      Button deleteBtn = new Button(VaadinIcon.TRASH.create());
-      deleteBtn.addThemeVariants(
-          ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
-      deleteBtn.addClickListener(e -> deleteTransaction(transaction));
-      deleteBtn.getElement().setAttribute("title", "Delete");
-      actions.add(deleteBtn);
+      // Post button requires POST_TRANSACTION permission
+      if (canPost) {
+        Button postBtn = new Button(VaadinIcon.CHECK.create());
+        postBtn.addThemeVariants(
+            ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_SUCCESS);
+        postBtn.addClickListener(e -> postTransaction(transaction));
+        postBtn.getElement().setAttribute("title", "Post");
+        actions.add(postBtn);
+      }
     } else {
       // For posted receipts, add allocate button (allocate to invoices)
-      if (transaction.getType() == TransactionType.RECEIPT) {
+      if (transaction.getType() == TransactionType.RECEIPT && canAllocate) {
         Button allocateBtn = new Button(VaadinIcon.CONNECT.create());
         allocateBtn.addThemeVariants(
             ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_SUCCESS);
@@ -262,7 +274,7 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
       }
 
       // For posted payments, add allocate button (allocate to bills)
-      if (transaction.getType() == TransactionType.PAYMENT) {
+      if (transaction.getType() == TransactionType.PAYMENT && canAllocate) {
         Button allocateBtn = new Button(VaadinIcon.CONNECT.create());
         allocateBtn.addThemeVariants(
             ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
@@ -271,11 +283,14 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
         actions.add(allocateBtn);
       }
 
-      Button reverseBtn = new Button(VaadinIcon.ROTATE_LEFT.create());
-      reverseBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
-      reverseBtn.addClickListener(e -> openReverseDialog(transaction));
-      reverseBtn.getElement().setAttribute("title", "Reverse");
-      actions.add(reverseBtn);
+      // Reverse button requires POST_TRANSACTION permission (creates new transaction)
+      if (canPost) {
+        Button reverseBtn = new Button(VaadinIcon.ROTATE_LEFT.create());
+        reverseBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        reverseBtn.addClickListener(e -> openReverseDialog(transaction));
+        reverseBtn.getElement().setAttribute("title", "Reverse");
+        actions.add(reverseBtn);
+      }
     }
 
     return actions;
@@ -306,24 +321,8 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
               grid, SavedView.EntityType.TRANSACTION, savedViewService, company, user);
     }
 
-    Button paymentBtn = new Button("Payment", VaadinIcon.MINUS.create());
-    paymentBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-    paymentBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.PAYMENT));
-
-    Button receiptBtn = new Button("Receipt", VaadinIcon.PLUS.create());
-    receiptBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
-    receiptBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.RECEIPT));
-
-    Button journalBtn = new Button("Journal", VaadinIcon.BOOK.create());
-    journalBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.JOURNAL));
-
-    Button transferBtn = new Button("Transfer", VaadinIcon.EXCHANGE.create());
-    transferBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
-    transferBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.TRANSFER));
-
-    Button importBtn = new Button("Import CSV", VaadinIcon.UPLOAD.create());
-    importBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-    importBtn.addClickListener(e -> openImportDialog());
+    // Check permission for creating transactions (READONLY users can't create)
+    boolean canCreate = companyContextService.hasPermission(Permissions.CREATE_TRANSACTION);
 
     Button refreshBtn = new Button(VaadinIcon.REFRESH.create());
     refreshBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -336,10 +335,33 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     }
     filters.setAlignItems(FlexComponent.Alignment.BASELINE);
 
-    HorizontalLayout buttons =
-        new HorizontalLayout(
-            paymentBtn, receiptBtn, journalBtn, transferBtn, importBtn, refreshBtn);
+    HorizontalLayout buttons = new HorizontalLayout();
     buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
+
+    // Only show create/import buttons if user has CREATE_TRANSACTION permission
+    if (canCreate) {
+      Button paymentBtn = new Button("Payment", VaadinIcon.MINUS.create());
+      paymentBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+      paymentBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.PAYMENT));
+
+      Button receiptBtn = new Button("Receipt", VaadinIcon.PLUS.create());
+      receiptBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
+      receiptBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.RECEIPT));
+
+      Button journalBtn = new Button("Journal", VaadinIcon.BOOK.create());
+      journalBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.JOURNAL));
+
+      Button transferBtn = new Button("Transfer", VaadinIcon.EXCHANGE.create());
+      transferBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+      transferBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.TRANSFER));
+
+      Button importBtn = new Button("Import CSV", VaadinIcon.UPLOAD.create());
+      importBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+      importBtn.addClickListener(e -> openImportDialog());
+
+      buttons.add(paymentBtn, receiptBtn, journalBtn, transferBtn, importBtn);
+    }
+    buttons.add(refreshBtn);
 
     HorizontalLayout left = new HorizontalLayout(title, filters);
     left.setAlignItems(FlexComponent.Alignment.CENTER);

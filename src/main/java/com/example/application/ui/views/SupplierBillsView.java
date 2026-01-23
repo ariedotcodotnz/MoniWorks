@@ -8,6 +8,7 @@ import java.util.List;
 
 import com.example.application.domain.*;
 import com.example.application.domain.SavedView.EntityType;
+import com.example.application.security.Permissions;
 import com.example.application.service.*;
 import com.example.application.ui.MainLayout;
 import com.example.application.ui.components.GridCustomizer;
@@ -264,10 +265,6 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
           new GridCustomizer<>(grid, EntityType.SUPPLIER_BILL, savedViewService, company, user);
     }
 
-    Button addButton = new Button("New Bill", VaadinIcon.PLUS.create());
-    addButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-    addButton.addClickListener(e -> openNewBillDialog());
-
     Button refreshButton = new Button(VaadinIcon.REFRESH.create());
     refreshButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
     refreshButton.addClickListener(e -> loadBills());
@@ -277,7 +274,15 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
     if (gridCustomizer != null) {
       filters.add(gridCustomizer);
     }
-    filters.add(addButton, refreshButton);
+
+    // Only show New Bill button if user has MANAGE_BILLS permission
+    if (companyContextService.hasPermission(Permissions.MANAGE_BILLS)) {
+      Button addButton = new Button("New Bill", VaadinIcon.PLUS.create());
+      addButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+      addButton.addClickListener(e -> openNewBillDialog());
+      filters.add(addButton);
+    }
+    filters.add(refreshButton);
     filters.setAlignItems(FlexComponent.Alignment.BASELINE);
 
     HorizontalLayout toolbar = new HorizontalLayout(title, filters);
@@ -359,7 +364,10 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
     HorizontalLayout actions = new HorizontalLayout();
     actions.setSpacing(true);
 
-    if (bill.isDraft()) {
+    // Check user permissions for bill management
+    boolean canManage = companyContextService.hasPermission(Permissions.MANAGE_BILLS);
+
+    if (bill.isDraft() && canManage) {
       Button editButton = new Button("Edit", VaadinIcon.EDIT.create());
       editButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
       editButton.addClickListener(e -> openEditBillDialog(bill));
@@ -382,7 +390,7 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
       }
     }
 
-    if (bill.isPosted() && !bill.isPaid()) {
+    if (bill.isPosted() && !bill.isPaid() && canManage) {
       // Debit note button for posted regular bills (not for debit notes themselves)
       if (bill.isBill()) {
         Button debitNoteButton = new Button("Debit Note", VaadinIcon.CREDIT_CARD.create());

@@ -58,6 +58,7 @@
 - **Phase 51 Account Alt Code Enhancement & Contact Transaction Prefill COMPLETE** - Tag: 0.6.3
 - **Phase 52 CSV Export for All Reports COMPLETE** - Tag: 0.6.4
 - **Phase 53 Product Sticky Note Display COMPLETE** - Tag: 0.6.5
+- **Phase 54 READONLY Role UI Enforcement COMPLETE** - Tag: 0.6.6
 - All 255 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1458,6 +1459,27 @@ Per specs, Release 1 must deliver:
   - Sticky note displayed when selecting product in bill line entry
   - Consistent visual styling across AR and AP views
 - [x] Fixes spec 08 acceptance criteria: "Sticky note appears when product is selected in a transaction/invoice"
+- [x] All 255 tests passing
+- [x] No forbidden markers
+
+### Phase 54: READONLY Role UI Enforcement (COMPLETE) - Tag: 0.6.6
+- [x] TransactionsView permission checks (spec 02 acceptance criteria)
+  - Added Permissions import and permission checks
+  - CREATE_TRANSACTION permission required for Payment/Receipt/Journal/Transfer/Import buttons
+  - POST_TRANSACTION permission required for Post and Reverse buttons
+  - MANAGE_ALLOCATIONS permission required for Allocate buttons (receipts/payments)
+  - Edit/Delete buttons hidden for users without CREATE_TRANSACTION permission
+- [x] SalesInvoicesView permission checks (spec 02 acceptance criteria)
+  - MANAGE_INVOICES permission required for New Invoice button
+  - Edit/Add Line/Issue buttons hidden for draft invoices if user lacks permission
+  - Credit Note/Void buttons hidden for issued invoices if user lacks permission
+  - PDF Export and Email buttons remain visible (view-only operations)
+- [x] SupplierBillsView permission checks (spec 02 acceptance criteria)
+  - MANAGE_BILLS permission required for New Bill button
+  - Edit/Add Line/Post buttons hidden for draft bills if user lacks permission
+  - Debit Note/Void buttons hidden for posted bills if user lacks permission
+  - PDF Export button remains visible (view-only operation)
+- [x] Fixes spec 02 acceptance criteria: "A READONLY user cannot create/edit/post transactions"
 - [x] All 255 tests passing
 - [x] No forbidden markers
 

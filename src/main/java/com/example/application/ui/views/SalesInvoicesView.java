@@ -8,6 +8,7 @@ import java.util.List;
 
 import com.example.application.domain.*;
 import com.example.application.domain.SavedView.EntityType;
+import com.example.application.security.Permissions;
 import com.example.application.service.*;
 import com.example.application.ui.MainLayout;
 import com.example.application.ui.components.GridCustomizer;
@@ -257,10 +258,6 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
           new GridCustomizer<>(grid, EntityType.SALES_INVOICE, savedViewService, company, user);
     }
 
-    Button addButton = new Button("New Invoice", VaadinIcon.PLUS.create());
-    addButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-    addButton.addClickListener(e -> openNewInvoiceDialog());
-
     Button refreshButton = new Button(VaadinIcon.REFRESH.create());
     refreshButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
     refreshButton.addClickListener(e -> loadInvoices());
@@ -270,7 +267,15 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
     if (gridCustomizer != null) {
       filters.add(gridCustomizer);
     }
-    filters.add(addButton, refreshButton);
+
+    // Only show New Invoice button if user has MANAGE_INVOICES permission
+    if (companyContextService.hasPermission(Permissions.MANAGE_INVOICES)) {
+      Button addButton = new Button("New Invoice", VaadinIcon.PLUS.create());
+      addButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+      addButton.addClickListener(e -> openNewInvoiceDialog());
+      filters.add(addButton);
+    }
+    filters.add(refreshButton);
     filters.setAlignItems(FlexComponent.Alignment.BASELINE);
 
     HorizontalLayout toolbar = new HorizontalLayout(title, filters);
@@ -357,7 +362,10 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
     HorizontalLayout actions = new HorizontalLayout();
     actions.setSpacing(true);
 
-    if (invoice.isDraft()) {
+    // Check user permissions for invoice management
+    boolean canManage = companyContextService.hasPermission(Permissions.MANAGE_INVOICES);
+
+    if (invoice.isDraft() && canManage) {
       Button editButton = new Button("Edit", VaadinIcon.EDIT.create());
       editButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
       editButton.addClickListener(e -> openEditInvoiceDialog(invoice));
@@ -373,7 +381,7 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
       actions.add(editButton, addLineButton, issueButton);
     }
 
-    if (invoice.isIssued() && !invoice.isPaid() && invoice.isInvoice()) {
+    if (invoice.isIssued() && !invoice.isPaid() && invoice.isInvoice() && canManage) {
       // Credit Note button (only for invoices, not credit notes)
       Button creditNoteButton = new Button("Credit Note", VaadinIcon.FILE_REMOVE.create());
       creditNoteButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -388,7 +396,7 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
     }
 
     // Void button for issued credit notes
-    if (invoice.isIssued() && invoice.isCreditNote()) {
+    if (invoice.isIssued() && invoice.isCreditNote() && canManage) {
       Button voidCreditNoteButton = new Button("Void", VaadinIcon.BAN.create());
       voidCreditNoteButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
       voidCreditNoteButton.addClickListener(e -> confirmVoidCreditNote(invoice));
