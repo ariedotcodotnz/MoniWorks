@@ -1328,7 +1328,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    tbExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "TrialBalance_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportTrialBalanceToCsv(currentTrialBalance, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    tbExportButtons.add(pdfLink, excelLink, csvLink);
     tbExportButtons.setVisible(true);
   }
 
@@ -1368,7 +1381,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    plExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "ProfitAndLoss_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportProfitAndLossToCsv(currentProfitAndLoss, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    plExportButtons.add(pdfLink, excelLink, csvLink);
     plExportButtons.setVisible(true);
   }
 
@@ -1408,7 +1434,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    bsExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "BalanceSheet_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportBalanceSheetToCsv(currentBalanceSheet, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    bsExportButtons.add(pdfLink, excelLink, csvLink);
     bsExportButtons.setVisible(true);
   }
 
@@ -1450,7 +1489,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    bvaExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "BudgetVsActual_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportBudgetVsActualToCsv(currentBudgetVsActual, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    bvaExportButtons.add(pdfLink, excelLink, csvLink);
     bvaExportButtons.setVisible(true);
   }
 
@@ -1491,7 +1543,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    arAgingExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "AR_Aging_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportArAgingToCsv(currentArAgingReport, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    arAgingExportButtons.add(pdfLink, excelLink, csvLink);
     arAgingExportButtons.setVisible(true);
   }
 
@@ -1532,7 +1597,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    apAgingExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "AP_Aging_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportApAgingToCsv(currentApAgingReport, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    apAgingExportButtons.add(pdfLink, excelLink, csvLink);
     apAgingExportButtons.setVisible(true);
   }
 
@@ -1818,7 +1896,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    cashflowExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "Cashflow_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportCashflowToCsv(currentCashflowStatement, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    cashflowExportButtons.add(pdfLink, excelLink, csvLink);
     cashflowExportButtons.setVisible(true);
   }
 
@@ -2582,7 +2673,20 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    bankRegisterExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "BankRegister_" + accountCode + "_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportBankRegisterToCsv(currentBankRegister, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    bankRegisterExportButtons.add(pdfLink, excelLink, csvLink);
     bankRegisterExportButtons.setVisible(true);
   }
 
@@ -2824,7 +2928,21 @@ public class ReportsView extends VerticalLayout {
     excelBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
     excelLink.add(excelBtn);
 
-    reconciliationStatusExportButtons.add(pdfLink, excelLink);
+    // CSV Export
+    StreamResource csvResource =
+        new StreamResource(
+            "ReconciliationStatus_" + dateStr + ".csv",
+            () ->
+                new ByteArrayInputStream(
+                    reportExportService.exportReconciliationStatusToCsv(
+                        currentReconciliationStatus, company)));
+    Anchor csvLink = new Anchor(csvResource, "");
+    csvLink.getElement().setAttribute("download", true);
+    Button csvBtn = new Button("CSV", VaadinIcon.FILE.create());
+    csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    csvLink.add(csvBtn);
+
+    reconciliationStatusExportButtons.add(pdfLink, excelLink, csvLink);
     reconciliationStatusExportButtons.setVisible(true);
   }
 }

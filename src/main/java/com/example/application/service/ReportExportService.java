@@ -231,6 +231,43 @@ public class ReportExportService {
     }
   }
 
+  /** Exports Trial Balance report to CSV format. */
+  public byte[] exportTrialBalanceToCsv(TrialBalance report, Company company) {
+    StringBuilder csv = new StringBuilder();
+
+    // Add UTF-8 BOM for Excel compatibility
+    csv.append('\uFEFF');
+
+    // Title row
+    csv.append(escapeCsvField(company.getName())).append(" - Trial Balance\n");
+    csv.append("Period: ")
+        .append(report.startDate().format(dateFormatter))
+        .append(" to ")
+        .append(report.endDate().format(dateFormatter))
+        .append("\n");
+    csv.append("Status: ").append(report.isBalanced() ? "BALANCED" : "OUT OF BALANCE").append("\n");
+    csv.append("\n");
+
+    // Header row
+    csv.append("Code,Account,Debits,Credits\n");
+
+    // Data rows
+    for (TrialBalanceLine line : report.lines()) {
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.debits().toPlainString()).append(",");
+      csv.append(line.credits().toPlainString()).append("\n");
+    }
+
+    // Totals row
+    csv.append(",Totals,");
+    csv.append(report.totalDebits().toPlainString()).append(",");
+    csv.append(report.totalCredits().toPlainString()).append("\n");
+
+    log.info("Generated Trial Balance CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
+
   // ==================== PROFIT & LOSS EXPORTS ====================
 
   /** Exports Profit & Loss report to PDF format. */
@@ -449,6 +486,56 @@ public class ReportExportService {
     }
   }
 
+  /** Exports Profit & Loss report to CSV format. */
+  public byte[] exportProfitAndLossToCsv(ProfitAndLoss report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    // Title
+    csv.append(escapeCsvField(company.getName())).append(" - Profit & Loss Statement\n");
+    String subtitle =
+        "Period: "
+            + report.startDate().format(dateFormatter)
+            + " to "
+            + report.endDate().format(dateFormatter);
+    if (report.department() != null) {
+      subtitle +=
+          " | Department: " + report.department().getCode() + " - " + report.department().getName();
+    }
+    csv.append(subtitle).append("\n\n");
+
+    // Header
+    csv.append("Section,Code,Account,Amount\n");
+
+    // Income lines
+    for (ProfitAndLossLine line : report.incomeLines()) {
+      csv.append("Income,");
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.amount().toPlainString()).append("\n");
+    }
+    csv.append("Income,,Total Income,").append(report.totalIncome().toPlainString()).append("\n");
+
+    // Expense lines
+    for (ProfitAndLossLine line : report.expenseLines()) {
+      csv.append("Expenses,");
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.amount().toPlainString()).append("\n");
+    }
+    csv.append("Expenses,,Total Expenses,")
+        .append(report.totalExpenses().toPlainString())
+        .append("\n");
+
+    // Net Profit/Loss
+    String label = report.netProfit().compareTo(BigDecimal.ZERO) >= 0 ? "Net Profit" : "Net Loss";
+    csv.append("Summary,,").append(label).append(",");
+    csv.append(report.netProfit().toPlainString()).append("\n");
+
+    log.info("Generated P&L CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
+
   // ==================== BALANCE SHEET EXPORTS ====================
 
   /** Exports Balance Sheet report to PDF format. */
@@ -642,6 +729,58 @@ public class ReportExportService {
       log.error("Failed to generate Balance Sheet Excel", e);
       throw new RuntimeException("Failed to generate Balance Sheet Excel: " + e.getMessage(), e);
     }
+  }
+
+  /** Exports Balance Sheet report to CSV format. */
+  public byte[] exportBalanceSheetToCsv(BalanceSheet report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    // Title
+    csv.append(escapeCsvField(company.getName())).append(" - Balance Sheet\n");
+    csv.append("As of ").append(report.asOfDate().format(dateFormatter)).append("\n");
+    csv.append("Status: ").append(report.isBalanced() ? "BALANCED" : "OUT OF BALANCE").append("\n");
+    csv.append("\n");
+
+    // Header
+    csv.append("Section,Code,Account,Balance\n");
+
+    // Assets
+    for (BalanceSheetLine line : report.assets()) {
+      csv.append("Assets,");
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.balance().toPlainString()).append("\n");
+    }
+    csv.append("Assets,,Total Assets,").append(report.totalAssets().toPlainString()).append("\n");
+
+    // Liabilities
+    for (BalanceSheetLine line : report.liabilities()) {
+      csv.append("Liabilities,");
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.balance().toPlainString()).append("\n");
+    }
+    csv.append("Liabilities,,Total Liabilities,")
+        .append(report.totalLiabilities().toPlainString())
+        .append("\n");
+
+    // Equity
+    for (BalanceSheetLine line : report.equity()) {
+      csv.append("Equity,");
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.balance().toPlainString()).append("\n");
+    }
+    csv.append("Equity,,Total Equity,").append(report.totalEquity().toPlainString()).append("\n");
+
+    // Summary
+    csv.append("Summary,,Total Liabilities + Equity,")
+        .append(report.totalLiabilities().add(report.totalEquity()).toPlainString())
+        .append("\n");
+
+    log.info("Generated Balance Sheet CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
   }
 
   private int addBalanceSheetSection(
@@ -868,6 +1007,52 @@ public class ReportExportService {
       log.error("Failed to generate Budget vs Actual Excel", e);
       throw new RuntimeException("Failed to generate Budget vs Actual Excel: " + e.getMessage(), e);
     }
+  }
+
+  /** Exports Budget vs Actual report to CSV format. */
+  public byte[] exportBudgetVsActualToCsv(BudgetVsActual report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    // Title
+    csv.append(escapeCsvField(company.getName())).append(" - Budget vs Actual\n");
+    csv.append("Budget: ")
+        .append(escapeCsvField(report.budget() != null ? report.budget().getName() : ""))
+        .append("\n");
+    csv.append("Period: ")
+        .append(report.startDate().format(dateFormatter))
+        .append(" to ")
+        .append(report.endDate().format(dateFormatter))
+        .append("\n\n");
+
+    // Header
+    csv.append("Code,Account,Budget,Actual,Variance,Variance %\n");
+
+    // Data rows
+    for (BudgetVsActualLine line : report.lines()) {
+      csv.append(escapeCsvField(line.account().getCode())).append(",");
+      csv.append(escapeCsvField(line.account().getName())).append(",");
+      csv.append(line.budgetAmount().toPlainString()).append(",");
+      csv.append(line.actualAmount().toPlainString()).append(",");
+      csv.append(line.variance().toPlainString()).append(",");
+      if (line.variancePercent() != null) {
+        csv.append(line.variancePercent().toPlainString()).append("%");
+      }
+      csv.append("\n");
+    }
+
+    // Totals row
+    csv.append(",Totals,");
+    csv.append(report.totalBudget().toPlainString()).append(",");
+    csv.append(report.totalActual().toPlainString()).append(",");
+    csv.append(report.totalVariance().toPlainString()).append(",");
+    if (report.totalVariancePercent() != null) {
+      csv.append(report.totalVariancePercent().toPlainString()).append("%");
+    }
+    csv.append("\n");
+
+    log.info("Generated Budget vs Actual CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
   }
 
   // ==================== PDF HELPER METHODS ====================
@@ -1098,6 +1283,21 @@ public class ReportExportService {
     return percent.abs().setScale(1, java.math.RoundingMode.HALF_UP) + "%";
   }
 
+  // ==================== CSV HELPER METHODS ====================
+
+  /**
+   * Escapes a field value for CSV output. Fields containing commas, quotes, or newlines are wrapped
+   * in quotes, and embedded quotes are doubled.
+   */
+  private String escapeCsvField(String value) {
+    if (value == null) return "";
+    // If field contains comma, quote, or newline, wrap in quotes and escape quotes
+    if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+      return "\"" + value.replace("\"", "\"\"") + "\"";
+    }
+    return value;
+  }
+
   // ==================== AR AGING EXPORTS ====================
 
   /**
@@ -1301,6 +1501,41 @@ public class ReportExportService {
     }
   }
 
+  /** Exports AR Aging report to CSV format. */
+  public byte[] exportArAgingToCsv(ArAgingReport report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    csv.append(escapeCsvField(company.getName())).append(" - Accounts Receivable Aging Report\n");
+    csv.append("As of ").append(report.asOfDate().format(dateFormatter)).append("\n\n");
+
+    // Header
+    csv.append("Customer,Current,1-30 Days,31-60 Days,61-90 Days,90+ Days,Total\n");
+
+    // Customer summaries
+    for (ArAgingCustomerSummary summary : report.customerSummaries()) {
+      csv.append(escapeCsvField(summary.customer().getName())).append(",");
+      csv.append(summary.current().toPlainString()).append(",");
+      csv.append(summary.days1to30().toPlainString()).append(",");
+      csv.append(summary.days31to60().toPlainString()).append(",");
+      csv.append(summary.days61to90().toPlainString()).append(",");
+      csv.append(summary.days90Plus().toPlainString()).append(",");
+      csv.append(summary.total().toPlainString()).append("\n");
+    }
+
+    // Totals
+    csv.append("Totals,");
+    csv.append(report.totalCurrent().toPlainString()).append(",");
+    csv.append(report.total1to30().toPlainString()).append(",");
+    csv.append(report.total31to60().toPlainString()).append(",");
+    csv.append(report.total61to90().toPlainString()).append(",");
+    csv.append(report.total90Plus().toPlainString()).append(",");
+    csv.append(report.grandTotal().toPlainString()).append("\n");
+
+    log.info("Generated AR Aging CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
+
   // ==================== AP AGING EXPORTS ====================
 
   /**
@@ -1502,6 +1737,41 @@ public class ReportExportService {
       log.error("Failed to generate AP Aging Excel", e);
       throw new RuntimeException("Failed to generate AP Aging Excel: " + e.getMessage(), e);
     }
+  }
+
+  /** Exports AP Aging report to CSV format. */
+  public byte[] exportApAgingToCsv(ApAgingReport report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    csv.append(escapeCsvField(company.getName())).append(" - Accounts Payable Aging Report\n");
+    csv.append("As of ").append(report.asOfDate().format(dateFormatter)).append("\n\n");
+
+    // Header
+    csv.append("Supplier,Current,1-30 Days,31-60 Days,61-90 Days,90+ Days,Total\n");
+
+    // Supplier summaries
+    for (ApAgingSupplierSummary summary : report.supplierSummaries()) {
+      csv.append(escapeCsvField(summary.supplier().getName())).append(",");
+      csv.append(summary.current().toPlainString()).append(",");
+      csv.append(summary.days1to30().toPlainString()).append(",");
+      csv.append(summary.days31to60().toPlainString()).append(",");
+      csv.append(summary.days61to90().toPlainString()).append(",");
+      csv.append(summary.days90Plus().toPlainString()).append(",");
+      csv.append(summary.total().toPlainString()).append("\n");
+    }
+
+    // Totals
+    csv.append("Totals,");
+    csv.append(report.totalCurrent().toPlainString()).append(",");
+    csv.append(report.total1to30().toPlainString()).append(",");
+    csv.append(report.total31to60().toPlainString()).append(",");
+    csv.append(report.total61to90().toPlainString()).append(",");
+    csv.append(report.total90Plus().toPlainString()).append(",");
+    csv.append(report.grandTotal().toPlainString()).append("\n");
+
+    log.info("Generated AP Aging CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
   }
 
   /**
@@ -1765,6 +2035,43 @@ public class ReportExportService {
       log.error("Failed to generate Cashflow Excel", e);
       throw new RuntimeException("Failed to generate Cashflow Excel: " + e.getMessage(), e);
     }
+  }
+
+  /** Exports Cashflow Statement report to CSV format. */
+  public byte[] exportCashflowToCsv(ReportingService.CashflowStatement report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    csv.append(escapeCsvField(company.getName())).append(" - Cashflow Statement\n");
+    csv.append("Period: ")
+        .append(report.startDate().format(dateFormatter))
+        .append(" to ")
+        .append(report.endDate().format(dateFormatter))
+        .append("\n\n");
+
+    // Summary section
+    csv.append("Summary\n");
+    csv.append("Opening Balance,").append(report.openingBalance().toPlainString()).append("\n");
+    csv.append("Total Inflows,").append(report.totalInflows().toPlainString()).append("\n");
+    csv.append("Total Outflows,").append(report.totalOutflows().toPlainString()).append("\n");
+    csv.append("Net Cash Flow,").append(report.netCashFlow().toPlainString()).append("\n");
+    csv.append("Closing Balance,").append(report.closingBalance().toPlainString()).append("\n\n");
+
+    // Account breakdown
+    csv.append("Bank Account Breakdown\n");
+    csv.append("Account,Opening,Inflows,Outflows,Net,Closing\n");
+
+    for (ReportingService.CashflowAccountSummary summary : report.accountSummaries()) {
+      csv.append(escapeCsvField(summary.account().getName())).append(",");
+      csv.append(summary.openingBalance().toPlainString()).append(",");
+      csv.append(summary.inflows().toPlainString()).append(",");
+      csv.append(summary.outflows().toPlainString()).append(",");
+      csv.append(summary.netChange().toPlainString()).append(",");
+      csv.append(summary.closingBalance().toPlainString()).append("\n");
+    }
+
+    log.info("Generated Cashflow CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
   }
 
   // Cashflow PDF helper methods
@@ -2123,6 +2430,60 @@ public class ReportExportService {
     }
   }
 
+  /** Exports Bank Register report to CSV format. */
+  public byte[] exportBankRegisterToCsv(ReportingService.BankRegister report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    csv.append(escapeCsvField(company.getName())).append(" - Bank Register\n");
+    csv.append("Account: ")
+        .append(escapeCsvField(report.bankAccount().getCode()))
+        .append(" - ")
+        .append(escapeCsvField(report.bankAccount().getName()))
+        .append("\n");
+    csv.append("Period: ")
+        .append(report.startDate().format(dateFormatter))
+        .append(" to ")
+        .append(report.endDate().format(dateFormatter))
+        .append("\n");
+    csv.append("Status: ")
+        .append(report.isReconciled() ? "Reconciled" : "Unreconciled")
+        .append("\n\n");
+
+    // Header
+    csv.append("Date,Reference,Description,Type,Debit,Credit,Running Balance\n");
+
+    // Transaction lines
+    for (ReportingService.BankRegisterLine line : report.lines()) {
+      csv.append(line.date().format(dateFormatter)).append(",");
+      csv.append(escapeCsvField(line.reference() != null ? line.reference() : "")).append(",");
+      csv.append(escapeCsvField(line.description() != null ? line.description() : "")).append(",");
+      csv.append(line.transactionType() != null ? line.transactionType() : "").append(",");
+      csv.append(
+              line.debit() != null && line.debit().compareTo(BigDecimal.ZERO) > 0
+                  ? line.debit().toPlainString()
+                  : "")
+          .append(",");
+      csv.append(
+              line.credit() != null && line.credit().compareTo(BigDecimal.ZERO) > 0
+                  ? line.credit().toPlainString()
+                  : "")
+          .append(",");
+      csv.append(line.runningBalance().toPlainString()).append("\n");
+    }
+
+    // Summary
+    csv.append("\nSummary\n");
+    csv.append("Opening Balance,").append(report.openingBalance().toPlainString()).append("\n");
+    csv.append("Total Debits,").append(report.totalDebits().toPlainString()).append("\n");
+    csv.append("Total Credits,").append(report.totalCredits().toPlainString()).append("\n");
+    csv.append("Net Change,").append(report.netChange().toPlainString()).append("\n");
+    csv.append("Closing Balance,").append(report.closingBalance().toPlainString()).append("\n");
+
+    log.info("Generated Bank Register CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
+
   // Bank Register PDF helper methods
   private void addBankRegisterAmountCell(
       PdfPTable table, BigDecimal amount, Color bgColor, boolean isDebit) {
@@ -2429,6 +2790,50 @@ public class ReportExportService {
       throw new RuntimeException(
           "Failed to generate Reconciliation Status Excel: " + e.getMessage(), e);
     }
+  }
+
+  /** Exports Reconciliation Status report to CSV format. */
+  public byte[] exportReconciliationStatusToCsv(
+      ReportingService.ReconciliationStatus report, Company company) {
+    StringBuilder csv = new StringBuilder();
+    csv.append('\uFEFF'); // UTF-8 BOM
+
+    csv.append(escapeCsvField(company.getName())).append(" - Reconciliation Status\n");
+    csv.append("As of ").append(report.asOfDate().format(dateFormatter)).append("\n\n");
+
+    // Summary
+    csv.append("Summary\n");
+    csv.append("Total Items,").append(report.grandTotal()).append("\n");
+    csv.append("Matched Items,").append(report.totalMatched()).append("\n");
+    csv.append("New (Unmatched) Items,").append(report.totalNew()).append("\n");
+    csv.append("Total Unreconciled Amount,")
+        .append(report.totalUnreconciledAmount().toPlainString())
+        .append("\n\n");
+
+    // Account breakdown
+    csv.append("Account Breakdown\n");
+    csv.append(
+        "Code,Account,New,Matched,Created,Ignored,Total,Unreconciled $,Reconciled %,Oldest Pending\n");
+
+    for (ReportingService.ReconciliationAccountSummary summary : report.accountSummaries()) {
+      csv.append(escapeCsvField(summary.account().getCode())).append(",");
+      csv.append(escapeCsvField(summary.account().getName())).append(",");
+      csv.append(summary.newCount()).append(",");
+      csv.append(summary.matchedCount()).append(",");
+      csv.append(summary.createdCount()).append(",");
+      csv.append(summary.ignoredCount()).append(",");
+      csv.append(summary.totalItems()).append(",");
+      csv.append(summary.unreconciledAmount().toPlainString()).append(",");
+      csv.append(summary.reconciledPercent().toPlainString()).append("%,");
+      csv.append(
+              summary.oldestUnmatchedDate() != null
+                  ? summary.oldestUnmatchedDate().format(dateFormatter)
+                  : "")
+          .append("\n");
+    }
+
+    log.info("Generated Reconciliation Status CSV ({} bytes)", csv.length());
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
   }
 
   private void addSummaryCellCenter(PdfPTable table, String text) {
