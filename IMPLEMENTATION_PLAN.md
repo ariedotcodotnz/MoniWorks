@@ -39,6 +39,7 @@
 - **Phase 31 Tax Basis Settings UI COMPLETE** - Tag: 0.4.3
 - **Phase 32 Tax Default Auto-Population COMPLETE** - Tag: 0.4.4
 - **Phase 33 Allocation Rule Auto-Suggest COMPLETE** - Tag: 0.4.5
+- **Phase 34 Balance-Forward Statements COMPLETE** - Tag: 0.4.6
 - All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
@@ -930,6 +931,34 @@ Per specs, Release 1 must deliver:
   - Suggestion hidden when line is added and form is cleared
   - Uses same findMatchingRule() method as bank reconciliation for consistency
   - Improves manual transaction entry efficiency for recurring payees
+- [x] All 150 tests passing
+- [x] No forbidden markers
+
+### Phase 34: Balance-Forward Statements (COMPLETE) - Tag: 0.4.6
+- [x] Balance-forward statement support in StatementService (spec 09)
+  - Added StatementType enum (OPEN_ITEM, BALANCE_FORWARD)
+  - Created BalanceForwardStatementData record with openingBalance, lines, totalDebits, totalCredits, closingBalance
+  - Created BalanceForwardLine record for period activity items (invoices, credit notes, payments)
+  - Added ReceivableAllocationRepository dependency for payment lookups in period
+  - Added generateBalanceForwardStatementData() method calculating opening balance and period transactions
+  - Added generateBalanceForwardStatementPdf() method with opening/activity/closing format
+- [x] Repository enhancements for balance-forward queries
+  - SalesInvoiceRepository: findByCompanyAndContactAndDateRange for invoices in statement period
+  - SalesInvoiceRepository: sumOutstandingByContactAsOfDate for calculating opening balance
+  - ReceivableAllocationRepository: findByContactAndDateRange for payments in statement period
+- [x] StatementRunService enhancements (spec 09)
+  - Extended StatementCriteria with statementType and periodStart fields
+  - Added factory methods: openItemCriteria(), balanceForwardCriteria()
+  - Updated createRun() JSON serialization for new criteria fields
+  - Updated parseCriteria() deserialization
+  - Updated processRun() to handle both statement types
+  - Added generateCombinedBalanceForwardPdf() for batch balance-forward statements
+- [x] StatementRunsView UI enhancements (spec 09)
+  - Added Statement Type ComboBox (Open Item / Balance Forward)
+  - Added Period Start Date picker (visible only for Balance Forward type)
+  - Dynamic field visibility based on statement type selection
+  - Validation for required Period Start when Balance Forward selected
+  - Updated all buildCriteria calls to pass new parameters
 - [x] All 150 tests passing
 - [x] No forbidden markers
 

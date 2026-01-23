@@ -94,4 +94,21 @@ public interface SalesInvoiceRepository extends JpaRepository<SalesInvoice, Long
     @Query("SELECT i FROM SalesInvoice i WHERE i.company = :company AND i.type = 'CREDIT_NOTE' " +
            "ORDER BY i.issueDate DESC, i.invoiceNumber DESC")
     List<SalesInvoice> findCreditNotesByCompany(@Param("company") Company company);
+
+    // Find issued invoices/credit notes for a contact in a date range
+    @Query("SELECT i FROM SalesInvoice i WHERE i.company = :company AND i.contact = :contact " +
+           "AND i.status = 'ISSUED' AND i.issueDate >= :startDate AND i.issueDate <= :endDate " +
+           "ORDER BY i.issueDate ASC, i.invoiceNumber ASC")
+    List<SalesInvoice> findByCompanyAndContactAndDateRange(@Param("company") Company company,
+                                                           @Param("contact") Contact contact,
+                                                           @Param("startDate") LocalDate startDate,
+                                                           @Param("endDate") LocalDate endDate);
+
+    // Sum of outstanding balance for a contact as of a specific date (invoices issued before date)
+    @Query("SELECT COALESCE(SUM(i.total - i.amountPaid), 0) FROM SalesInvoice i " +
+           "WHERE i.company = :company AND i.contact = :contact AND i.status = 'ISSUED' " +
+           "AND i.issueDate < :asOfDate AND (i.total - i.amountPaid) > 0")
+    BigDecimal sumOutstandingByContactAsOfDate(@Param("company") Company company,
+                                                @Param("contact") Contact contact,
+                                                @Param("asOfDate") LocalDate asOfDate);
 }

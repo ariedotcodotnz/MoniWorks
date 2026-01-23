@@ -1,6 +1,7 @@
 package com.example.application.repository;
 
 import com.example.application.domain.Company;
+import com.example.application.domain.Contact;
 import com.example.application.domain.ReceivableAllocation;
 import com.example.application.domain.SalesInvoice;
 import com.example.application.domain.Transaction;
@@ -31,4 +32,14 @@ public interface ReceivableAllocationRepository extends JpaRepository<Receivable
 
     // Check if allocation exists
     boolean existsByReceiptTransactionAndSalesInvoice(Transaction receiptTransaction, SalesInvoice salesInvoice);
+
+    // Find allocations for a contact's invoices within a date range (for balance-forward statements)
+    @Query("SELECT a FROM ReceivableAllocation a WHERE a.company = :company " +
+           "AND a.salesInvoice.contact = :contact " +
+           "AND a.allocatedAt >= :startDate AND a.allocatedAt < :endDate " +
+           "ORDER BY a.allocatedAt ASC")
+    List<ReceivableAllocation> findByContactAndDateRange(@Param("company") Company company,
+                                                          @Param("contact") Contact contact,
+                                                          @Param("startDate") java.time.Instant startDate,
+                                                          @Param("endDate") java.time.Instant endDate);
 }

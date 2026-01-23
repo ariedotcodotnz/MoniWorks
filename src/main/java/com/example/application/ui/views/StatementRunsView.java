@@ -4,6 +4,7 @@ import com.example.application.domain.*;
 import com.example.application.domain.StatementRun.RunStatus;
 import com.example.application.service.*;
 import com.example.application.service.StatementRunService.StatementCriteria;
+import com.example.application.service.StatementService.StatementType;
 import com.example.application.ui.MainLayout;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -384,10 +385,31 @@ public class StatementRunsView extends VerticalLayout {
 
         FormLayout form = new FormLayout();
 
+        // Statement Type selector
+        ComboBox<StatementType> statementTypeField = new ComboBox<>("Statement Type");
+        statementTypeField.setItems(StatementType.values());
+        statementTypeField.setValue(StatementType.OPEN_ITEM);
+        statementTypeField.setItemLabelGenerator(type -> type == StatementType.OPEN_ITEM ? "Open Item" : "Balance Forward");
+        statementTypeField.setRequired(true);
+        statementTypeField.setHelperText("Open Item lists individual invoices; Balance Forward shows period activity");
+
         DatePicker asOfDateField = new DatePicker("As Of Date");
         asOfDateField.setRequired(true);
         asOfDateField.setValue(LocalDate.now());
         asOfDateField.setHelperText("Generate statements as of this date");
+
+        // Period Start for Balance Forward statements
+        DatePicker periodStartField = new DatePicker("Period Start Date");
+        periodStartField.setValue(LocalDate.now().withDayOfMonth(1));
+        periodStartField.setHelperText("Start date for balance-forward statement period");
+        periodStartField.setVisible(false);
+
+        // Show/hide period start based on statement type
+        statementTypeField.addValueChangeListener(e -> {
+            boolean isBalanceForward = e.getValue() == StatementType.BALANCE_FORWARD;
+            periodStartField.setVisible(isBalanceForward);
+            periodStartField.setRequired(isBalanceForward);
+        });
 
         BigDecimalField minimumBalanceField = new BigDecimalField("Minimum Balance");
         minimumBalanceField.setValue(BigDecimal.ZERO);
@@ -437,7 +459,9 @@ public class StatementRunsView extends VerticalLayout {
                     minimumBalanceField.getValue(),
                     minimumDaysOverdueField.getValue(),
                     customerSelect.getValue(),
-                    includeZeroBalanceField.getValue()
+                    includeZeroBalanceField.getValue(),
+                    statementTypeField.getValue(),
+                    periodStartField.getValue()
             );
 
             List<Contact> preview = runService.previewCustomers(
@@ -449,8 +473,8 @@ public class StatementRunsView extends VerticalLayout {
 
         previewSection.add(previewButton, previewLabel, previewCount, previewGrid);
 
-        form.add(asOfDateField, minimumBalanceField, minimumDaysOverdueField,
-                includeZeroBalanceField, customerSelect, previewSection);
+        form.add(statementTypeField, asOfDateField, periodStartField, minimumBalanceField,
+                minimumDaysOverdueField, includeZeroBalanceField, customerSelect, previewSection);
         form.setColspan(customerSelect, 2);
         form.setColspan(previewSection, 2);
         form.setResponsiveSteps(
@@ -467,12 +491,21 @@ public class StatementRunsView extends VerticalLayout {
                 return;
             }
 
+            if (statementTypeField.getValue() == StatementType.BALANCE_FORWARD && periodStartField.isEmpty()) {
+                Notification.show("Please select a Period Start Date for Balance Forward statements",
+                        3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                return;
+            }
+
             try {
                 StatementCriteria criteria = buildCriteria(
                         minimumBalanceField.getValue(),
                         minimumDaysOverdueField.getValue(),
                         customerSelect.getValue(),
-                        includeZeroBalanceField.getValue()
+                        includeZeroBalanceField.getValue(),
+                        statementTypeField.getValue(),
+                        periodStartField.getValue()
                 );
 
                 User currentUser = companyContextService.getCurrentUser();
@@ -503,12 +536,21 @@ public class StatementRunsView extends VerticalLayout {
                 return;
             }
 
+            if (statementTypeField.getValue() == StatementType.BALANCE_FORWARD && periodStartField.isEmpty()) {
+                Notification.show("Please select a Period Start Date for Balance Forward statements",
+                        3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                return;
+            }
+
             try {
                 StatementCriteria criteria = buildCriteria(
                         minimumBalanceField.getValue(),
                         minimumDaysOverdueField.getValue(),
                         customerSelect.getValue(),
-                        includeZeroBalanceField.getValue()
+                        includeZeroBalanceField.getValue(),
+                        statementTypeField.getValue(),
+                        periodStartField.getValue()
                 );
 
                 User currentUser = companyContextService.getCurrentUser();
@@ -547,16 +589,22 @@ public class StatementRunsView extends VerticalLayout {
     private StatementCriteria buildCriteria(BigDecimal minimumBalance,
                                             Integer minimumDaysOverdue,
                                             Set<Contact> selectedCustomers,
-                                            boolean includeZeroBalance) {
+                                            boolean includeZeroBalance,
+                                            StatementService.StatementType statementType,
+                                            LocalDate periodStart) {
         List<Long> contactIds = selectedCustomers != null && !selectedCustomers.isEmpty()
                 ? selectedCustomers.stream().map(Contact::getId).collect(Collectors.toList())
                 : List.of();
 
-        return new StatementCriteria(
+        if (statementType == StatementService.StatementType.BALANCE_FORWARD) {
+            return StatementCriteria.balanceForwardCriteria(periodStart, contactIds, includeZeroBalance);
+        } else {
+            return StatementCriteria.openItemCriteria(
                 minimumBalance != null ? minimumBalance : BigDecimal.ZERO,
                 minimumDaysOverdue,
                 contactIds,
                 includeZeroBalance
-        );
+            );
+        }
     }
 }

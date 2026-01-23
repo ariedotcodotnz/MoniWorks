@@ -66,13 +66,28 @@ public class StatementRunService {
      * Criteria for filtering which customers to include in a statement run.
      */
     public record StatementCriteria(
-        BigDecimal minimumBalance,     // Only customers with balance >= this amount
-        Integer minimumDaysOverdue,    // Only customers with invoices overdue >= this many days
-        List<Long> contactIds,         // Specific customer IDs (if empty, all customers with balances)
-        boolean includeZeroBalance     // Include customers with zero balance (rarely wanted)
+        BigDecimal minimumBalance,          // Only customers with balance >= this amount
+        Integer minimumDaysOverdue,         // Only customers with invoices overdue >= this many days
+        List<Long> contactIds,              // Specific customer IDs (if empty, all customers with balances)
+        boolean includeZeroBalance,         // Include customers with zero balance (rarely wanted)
+        StatementService.StatementType statementType,  // Open-item or balance-forward (spec 09)
+        LocalDate periodStart               // For balance-forward: start of period (end is asOfDate)
     ) {
         public static StatementCriteria defaultCriteria() {
-            return new StatementCriteria(BigDecimal.ZERO, null, List.of(), false);
+            return new StatementCriteria(BigDecimal.ZERO, null, List.of(), false,
+                StatementService.StatementType.OPEN_ITEM, null);
+        }
+
+        public static StatementCriteria openItemCriteria(BigDecimal minimumBalance,
+                Integer minimumDaysOverdue, List<Long> contactIds, boolean includeZeroBalance) {
+            return new StatementCriteria(minimumBalance, minimumDaysOverdue, contactIds, includeZeroBalance,
+                StatementService.StatementType.OPEN_ITEM, null);
+        }
+
+        public static StatementCriteria balanceForwardCriteria(LocalDate periodStart,
+                List<Long> contactIds, boolean includeZeroBalance) {
+            return new StatementCriteria(null, null, contactIds, includeZeroBalance,
+                StatementService.StatementType.BALANCE_FORWARD, periodStart);
         }
     }
 
@@ -102,6 +117,13 @@ public class StatementRunService {
                 criteriaNode.putPOJO("contactIds", criteria.contactIds());
             }
             criteriaNode.put("includeZeroBalance", criteria.includeZeroBalance());
+            // Statement type (spec 09 - balance-forward support)
+            if (criteria.statementType() != null) {
+                criteriaNode.put("statementType", criteria.statementType().name());
+            }
+            if (criteria.periodStart() != null) {
+                criteriaNode.put("periodStart", criteria.periodStart().toString());
+            }
             run.setCriteriaJson(objectMapper.writeValueAsString(criteriaNode));
         } catch (JsonProcessingException e) {
             log.warn("Failed to serialize criteria JSON", e);
@@ -153,11 +175,21 @@ public class StatementRunService {
                 return run;
             }
 
-            // Generate combined PDF with all statements
-            byte[] combinedPdf = generateCombinedStatementsPdf(company, customersWithBalances, asOfDate);
-
-            // Store as attachment
-            String filename = "Statements_" + asOfDate.toString() + ".pdf";
+            // Generate combined PDF with all statements (spec 09 - open-item or balance-forward)
+            byte[] combinedPdf;
+            String filename;
+            if (criteria.statementType() == StatementService.StatementType.BALANCE_FORWARD) {
+                // Balance-forward statements show activity over a period
+                LocalDate periodStart = criteria.periodStart() != null
+                    ? criteria.periodStart()
+                    : asOfDate.minusMonths(1);
+                combinedPdf = generateCombinedBalanceForwardPdf(company, customersWithBalances, periodStart, asOfDate);
+                filename = "BalanceForward_Statements_" + periodStart.toString() + "_to_" + asOfDate.toString() + ".pdf";
+            } else {
+                // Open-item statements (default) show outstanding invoices
+                combinedPdf = generateCombinedStatementsPdf(company, customersWithBalances, asOfDate);
+                filename = "Statements_" + asOfDate.toString() + ".pdf";
+            }
             Attachment attachment = attachmentService.uploadAndLink(
                 company, filename, "application/pdf", combinedPdf, user,
                 EntityType.STATEMENT_RUN, run.getId()
@@ -306,6 +338,57 @@ public class StatementRunService {
     }
 
     /**
+     * Generates a combined PDF containing balance-forward statements for multiple customers.
+     * Each customer starts on a new page.
+     * Shows activity over a period with opening/closing balances (spec 09).
+     */
+    private byte[] generateCombinedBalanceForwardPdf(Company company, List<Contact> customers,
+                                                      LocalDate periodStart, LocalDate periodEnd) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Document document = new Document(PageSize.A4, 50, 50, 50, 50);
+            PdfWriter writer = PdfWriter.getInstance(document, baos);
+            document.open();
+
+            boolean firstPage = true;
+            for (Contact customer : customers) {
+                if (!firstPage) {
+                    document.newPage();
+                }
+                firstPage = false;
+
+                // Generate balance-forward statement for this customer
+                StatementService.BalanceForwardStatementData data =
+                    statementService.generateBalanceForwardStatementData(company, customer, periodStart, periodEnd);
+
+                // Generate PDF and merge
+                byte[] customerPdf = statementService.generateBalanceForwardStatementPdf(data);
+
+                // Import pages from the customer statement
+                PdfReader reader = new PdfReader(customerPdf);
+                int numPages = reader.getNumberOfPages();
+                PdfContentByte cb = writer.getDirectContent();
+
+                for (int page = 1; page <= numPages; page++) {
+                    if (page > 1) {
+                        document.newPage();
+                    }
+                    PdfImportedPage importedPage = writer.getImportedPage(reader, page);
+                    cb.addTemplate(importedPage, 0, 0);
+                }
+
+                reader.close();
+            }
+
+            document.close();
+            return baos.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Failed to generate combined balance-forward statements PDF", e);
+            throw new RuntimeException("Failed to generate combined balance-forward statements PDF: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Parses criteria JSON back into a StatementCriteria object.
      */
     private StatementCriteria parseCriteria(String json) {
@@ -333,7 +416,23 @@ public class StatementRunService {
 
             boolean includeZeroBalance = node.has("includeZeroBalance") && node.get("includeZeroBalance").asBoolean();
 
-            return new StatementCriteria(minimumBalance, minimumDaysOverdue, contactIds, includeZeroBalance);
+            // Parse statement type (spec 09 - balance-forward support)
+            StatementService.StatementType statementType = StatementService.StatementType.OPEN_ITEM;
+            if (node.has("statementType")) {
+                try {
+                    statementType = StatementService.StatementType.valueOf(node.get("statementType").asText());
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid statement type in criteria, using OPEN_ITEM");
+                }
+            }
+
+            LocalDate periodStart = null;
+            if (node.has("periodStart")) {
+                periodStart = LocalDate.parse(node.get("periodStart").asText());
+            }
+
+            return new StatementCriteria(minimumBalance, minimumDaysOverdue, contactIds, includeZeroBalance,
+                statementType, periodStart);
 
         } catch (Exception e) {
             log.warn("Failed to parse criteria JSON, using defaults", e);
