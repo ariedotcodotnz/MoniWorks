@@ -60,6 +60,7 @@
 - **Phase 53 Product Sticky Note Display COMPLETE** - Tag: 0.6.5
 - **Phase 54 READONLY Role UI Enforcement COMPLETE** - Tag: 0.6.6
 - **Phase 55 Posted Transaction UI Guidance COMPLETE** - Tag: 0.6.7
+- **Phase 56 Failed Recurrence Dashboard Widget COMPLETE** - Tag: 0.6.8
 - All 255 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1499,6 +1500,19 @@ Per specs, Release 1 must deliver:
     - Cash Balance, This Month, Income Trend: Security-filtered ✓
     - GST Estimate, Overdue Receivables, Overdue Payables: Not filtered but appropriate (these show invoices/bills/tax data which are not subject to account-level security per spec 02 - security levels apply to Chart of Accounts, not AR/AP documents)
 - [x] Fixes spec 04 acceptance criteria: "Editing a posted transaction is not possible; UI directs to 'Reverse / Adjust'"
+- [x] All 255 tests passing
+- [x] No forbidden markers
+
+### Phase 56: Failed Recurrence Dashboard Widget (COMPLETE) - Tag: 0.6.8
+- [x] Added a new dashboard tile showing failed recurring template executions from the last 7 days
+  - Provides operational visibility into automation failures without requiring users to navigate to each template
+- [x] Implementation details:
+  - Added RecurrenceExecutionLogRepository to DashboardView
+  - Created createFailedRecurrencesTile() method that displays:
+    - Count of failed executions in last 7 days
+    - List of up to 3 recent failures with template name and date
+    - Color-coded status (green for no failures, red for failures)
+  - Uses existing countRecentFailures() and findRecentByCompanyAndResult() repository methods
 - [x] All 255 tests passing
 - [x] No forbidden markers
 

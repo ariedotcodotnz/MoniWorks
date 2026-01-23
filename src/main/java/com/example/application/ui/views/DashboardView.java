@@ -2,18 +2,22 @@ package com.example.application.ui.views;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import com.example.application.domain.Account;
 import com.example.application.domain.Company;
+import com.example.application.domain.RecurrenceExecutionLog;
 import com.example.application.domain.SalesInvoice;
 import com.example.application.domain.SupplierBill;
 import com.example.application.repository.AccountRepository;
 import com.example.application.repository.LedgerEntryRepository;
+import com.example.application.repository.RecurrenceExecutionLogRepository;
 import com.example.application.repository.SalesInvoiceRepository;
 import com.example.application.repository.SupplierBillRepository;
 import com.example.application.repository.TaxLineRepository;
@@ -51,6 +55,7 @@ public class DashboardView extends VerticalLayout {
   private final ReportingService reportingService;
   private final SalesInvoiceRepository salesInvoiceRepository;
   private final SupplierBillRepository supplierBillRepository;
+  private final RecurrenceExecutionLogRepository recurrenceLogRepository;
 
   private final NumberFormat currencyFormat;
   private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy");
@@ -62,7 +67,8 @@ public class DashboardView extends VerticalLayout {
       TaxLineRepository taxLineRepository,
       ReportingService reportingService,
       SalesInvoiceRepository salesInvoiceRepository,
-      SupplierBillRepository supplierBillRepository) {
+      SupplierBillRepository supplierBillRepository,
+      RecurrenceExecutionLogRepository recurrenceLogRepository) {
     this.companyContextService = companyContextService;
     this.accountRepository = accountRepository;
     this.ledgerEntryRepository = ledgerEntryRepository;
@@ -70,6 +76,7 @@ public class DashboardView extends VerticalLayout {
     this.reportingService = reportingService;
     this.salesInvoiceRepository = salesInvoiceRepository;
     this.supplierBillRepository = supplierBillRepository;
+    this.recurrenceLogRepository = recurrenceLogRepository;
 
     // Set up currency format for NZ
     this.currencyFormat = NumberFormat.getCurrencyInstance(new Locale("en", "NZ"));
@@ -100,7 +107,8 @@ public class DashboardView extends VerticalLayout {
         createIncomeTrendTile(company),
         createGstDueTile(company),
         createOverdueReceivablesTile(company),
-        createOverduePayablesTile(company));
+        createOverduePayablesTile(company),
+        createFailedRecurrencesTile(company));
 
     add(title, welcome, tilesContainer);
   }
@@ -646,6 +654,128 @@ public class DashboardView extends VerticalLayout {
         .set("margin-top", "auto")
         .set("margin-bottom", "0");
     content.add(asOf);
+
+    return tile;
+  }
+
+  /**
+   * Creates the Failed Recurrences tile showing recent recurring template failures. Displays
+   * failures from the last 7 days to alert users of automation issues.
+   */
+  private Div createFailedRecurrencesTile(Company company) {
+    Div tile = createTileBase("Failed Recurrences", "var(--lumo-error-color)");
+    VerticalLayout content = (VerticalLayout) tile.getComponentAt(1);
+
+    // Look back 7 days for failures
+    Instant since = Instant.now().minus(7, ChronoUnit.DAYS);
+    long failureCount = recurrenceLogRepository.countRecentFailures(company.getId(), since);
+
+    if (failureCount == 0) {
+      Paragraph noFailures = new Paragraph("No recent failures");
+      noFailures.getStyle().set("color", "var(--lumo-success-color)");
+      content.add(noFailures);
+
+      Paragraph allGood = new Paragraph("All recurring templates are running successfully");
+      allGood
+          .getStyle()
+          .set("color", "var(--lumo-secondary-text-color)")
+          .set("font-size", "var(--lumo-font-size-xs)")
+          .set("margin", "0");
+      content.add(allGood);
+    } else {
+      // Show failure count with warning styling
+      HorizontalLayout countRow = new HorizontalLayout();
+      countRow.setWidthFull();
+      countRow.setJustifyContentMode(JustifyContentMode.BETWEEN);
+      countRow.setPadding(false);
+      countRow.setSpacing(false);
+
+      Span countLabel = new Span("Failed executions");
+      countLabel.getStyle().set("font-size", "var(--lumo-font-size-s)");
+
+      Span countValue = new Span(String.valueOf(failureCount));
+      countValue
+          .getStyle()
+          .set("font-size", "var(--lumo-font-size-xl)")
+          .set("font-weight", "600")
+          .set("color", "var(--lumo-error-color)");
+
+      countRow.add(countLabel, countValue);
+      content.add(countRow);
+
+      // Show up to 3 recent failures with template names
+      List<RecurrenceExecutionLog> recentFailures =
+          recurrenceLogRepository.findRecentByCompanyAndResult(
+              company.getId(), RecurrenceExecutionLog.Result.FAILED, since);
+
+      int displayCount = Math.min(3, recentFailures.size());
+      for (int i = 0; i < displayCount; i++) {
+        RecurrenceExecutionLog log = recentFailures.get(i);
+        HorizontalLayout failureRow = new HorizontalLayout();
+        failureRow.setWidthFull();
+        failureRow.setJustifyContentMode(JustifyContentMode.BETWEEN);
+        failureRow.setPadding(false);
+        failureRow.setSpacing(false);
+
+        String templateName =
+            log.getTemplate() != null ? log.getTemplate().getName() : "Unknown Template";
+        if (templateName.length() > 25) {
+          templateName = templateName.substring(0, 22) + "...";
+        }
+
+        Span nameSpan = new Span(templateName);
+        nameSpan
+            .getStyle()
+            .set("font-size", "var(--lumo-font-size-xs)")
+            .set("color", "var(--lumo-secondary-text-color)");
+
+        // Format the failure time
+        LocalDate failedDate =
+            log.getRunAt().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        Span dateSpan = new Span(failedDate.format(dateFormatter));
+        dateSpan
+            .getStyle()
+            .set("font-size", "var(--lumo-font-size-xs)")
+            .set("color", "var(--lumo-error-color)");
+
+        failureRow.add(nameSpan, dateSpan);
+        content.add(failureRow);
+      }
+
+      if (recentFailures.size() > 3) {
+        Paragraph more = new Paragraph("+" + (recentFailures.size() - 3) + " more...");
+        more.getStyle()
+            .set("font-size", "var(--lumo-font-size-xs)")
+            .set("color", "var(--lumo-secondary-text-color)")
+            .set("margin", "0");
+        content.add(more);
+      }
+
+      // Add note about checking recurring templates
+      Div divider = new Div();
+      divider
+          .getStyle()
+          .set("border-top", "1px solid var(--lumo-contrast-10pct)")
+          .set("margin", "var(--lumo-space-s) 0");
+      content.add(divider);
+
+      Paragraph note = new Paragraph("Check Recurring Templates for details");
+      note.getStyle()
+          .set("color", "var(--lumo-secondary-text-color)")
+          .set("font-size", "var(--lumo-font-size-xs)")
+          .set("margin", "0");
+      content.add(note);
+    }
+
+    // Period info
+    Paragraph period = new Paragraph("Last 7 days");
+    period
+        .getStyle()
+        .set("color", "var(--lumo-secondary-text-color)")
+        .set("font-size", "var(--lumo-font-size-xs)")
+        .set("margin-top", "auto")
+        .set("margin-bottom", "0");
+    content.add(period);
 
     return tile;
   }
