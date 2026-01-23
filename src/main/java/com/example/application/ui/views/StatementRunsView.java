@@ -6,13 +6,17 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.example.application.domain.*;
 import com.example.application.domain.StatementRun.RunStatus;
 import com.example.application.service.*;
+import com.example.application.service.EmailService.EmailResult;
 import com.example.application.service.StatementRunService.StatementCriteria;
 import com.example.application.service.StatementService.StatementType;
 import com.example.application.ui.MainLayout;
@@ -58,6 +62,8 @@ public class StatementRunsView extends VerticalLayout {
   private final ContactService contactService;
   private final AttachmentService attachmentService;
   private final CompanyContextService companyContextService;
+  private final EmailService emailService;
+  private final StatementService statementService;
 
   private final Grid<StatementRun> runGrid = new Grid<>();
   private final VerticalLayout detailPanel = new VerticalLayout();
@@ -73,11 +79,15 @@ public class StatementRunsView extends VerticalLayout {
       StatementRunService runService,
       ContactService contactService,
       AttachmentService attachmentService,
-      CompanyContextService companyContextService) {
+      CompanyContextService companyContextService,
+      EmailService emailService,
+      StatementService statementService) {
     this.runService = runService;
     this.contactService = contactService;
     this.attachmentService = attachmentService;
     this.companyContextService = companyContextService;
+    this.emailService = emailService;
+    this.statementService = statementService;
 
     addClassName("statement-runs-view");
     setSizeFull();
@@ -246,6 +256,11 @@ public class StatementRunsView extends VerticalLayout {
       downloadBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
       downloadBtn.addClickListener(e -> downloadPdf());
       actionButtons.add(downloadBtn);
+
+      Button emailBtn = new Button("Email Statements", VaadinIcon.ENVELOPE.create());
+      emailBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+      emailBtn.addClickListener(e -> openEmailStatementsDialog());
+      actionButtons.add(emailBtn);
     }
 
     HorizontalLayout headerLayout = new HorizontalLayout(header, actionButtons);
@@ -395,6 +410,195 @@ public class StatementRunsView extends VerticalLayout {
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
               }
             });
+  }
+
+  private void openEmailStatementsDialog() {
+    if (selectedRun == null || !selectedRun.isCompleted()) {
+      return;
+    }
+
+    Dialog dialog = new Dialog();
+    dialog.setHeaderTitle("Email Statements to Customers");
+    dialog.setWidth("600px");
+
+    Company company = companyContextService.getCurrentCompany();
+    LocalDate asOfDate = selectedRun.getAsOfDate();
+
+    // Re-calculate the customers included in this run using the same criteria
+    StatementCriteria criteria = parseCriteriaFromRun(selectedRun);
+    List<Contact> customers =
+        runService.previewCustomers(company, asOfDate, criteria).stream()
+            .filter(c -> c.getEmail() != null && !c.getEmail().isBlank())
+            .collect(Collectors.toList());
+
+    if (customers.isEmpty()) {
+      VerticalLayout content = new VerticalLayout();
+      content.add(new Span("No customers in this statement run have email addresses configured."));
+      dialog.add(content);
+      Button closeBtn = new Button("Close", e -> dialog.close());
+      dialog.getFooter().add(closeBtn);
+      dialog.open();
+      return;
+    }
+
+    VerticalLayout content = new VerticalLayout();
+    content.setPadding(false);
+    content.setSpacing(true);
+
+    content.add(new Span("Send individual statements to the following customers:"));
+    content.add(new Span("Statements will be generated as of " + formatDate(asOfDate)));
+
+    Checkbox selectAll = new Checkbox("Select All");
+    selectAll.setValue(true);
+
+    VerticalLayout customerList = new VerticalLayout();
+    customerList.setPadding(false);
+    customerList.setSpacing(false);
+    customerList.getStyle().set("max-height", "300px");
+    customerList.getStyle().set("overflow-y", "auto");
+
+    Map<Checkbox, Contact> checkboxToCustomer = new LinkedHashMap<>();
+    List<Checkbox> customerCheckboxes = new ArrayList<>();
+
+    for (Contact customer : customers) {
+      Checkbox cb = new Checkbox(customer.getName() + " (" + customer.getEmail() + ")");
+      cb.setValue(true);
+      checkboxToCustomer.put(cb, customer);
+      customerCheckboxes.add(cb);
+      customerList.add(cb);
+    }
+
+    selectAll.addValueChangeListener(
+        e -> customerCheckboxes.forEach(cb -> cb.setValue(e.getValue())));
+
+    content.add(selectAll, customerList);
+
+    Span summaryText = new Span(customers.size() + " customer(s) with email addresses");
+    summaryText.getStyle().set("font-style", "italic");
+    summaryText.getStyle().set("color", "var(--lumo-secondary-text-color)");
+    content.add(summaryText);
+
+    Button cancelBtn = new Button("Cancel", e -> dialog.close());
+    Button sendBtn = new Button("Send Emails", VaadinIcon.ENVELOPE.create());
+    sendBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    sendBtn.addClickListener(
+        e -> {
+          List<Contact> selectedCustomers =
+              customerCheckboxes.stream()
+                  .filter(Checkbox::getValue)
+                  .map(checkboxToCustomer::get)
+                  .collect(Collectors.toList());
+
+          if (selectedCustomers.isEmpty()) {
+            Notification.show(
+                    "Please select at least one customer", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          sendStatementEmails(selectedCustomers, asOfDate);
+          dialog.close();
+        });
+
+    dialog.add(content);
+    dialog.getFooter().add(cancelBtn, sendBtn);
+    dialog.open();
+  }
+
+  private void sendStatementEmails(List<Contact> customers, LocalDate asOfDate) {
+    Company company = companyContextService.getCurrentCompany();
+    User currentUser = companyContextService.getCurrentUser();
+
+    int sent = 0;
+    int failed = 0;
+
+    for (Contact customer : customers) {
+      try {
+        // Generate individual statement PDF for this customer
+        byte[] pdfContent = statementService.generateStatementPdf(company, customer, asOfDate);
+        EmailResult result = emailService.sendStatement(customer, company, pdfContent, currentUser);
+
+        if (result.success() || "QUEUED".equals(result.status())) {
+          sent++;
+        } else {
+          failed++;
+        }
+      } catch (Exception ex) {
+        failed++;
+      }
+    }
+
+    if (failed == 0) {
+      Notification.show(
+              "Statements sent to " + sent + " customer(s)",
+              5000,
+              Notification.Position.BOTTOM_START)
+          .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+    } else {
+      Notification.show("Sent: " + sent + ", Failed: " + failed, 5000, Notification.Position.MIDDLE)
+          .addThemeVariants(NotificationVariant.LUMO_WARNING);
+    }
+  }
+
+  /**
+   * Parses criteria JSON from a statement run back into a StatementCriteria object. Used for
+   * retrieving the customers in a completed run for email sending.
+   */
+  private StatementCriteria parseCriteriaFromRun(StatementRun run) {
+    String json = run.getCriteriaJson();
+    if (json == null || json.isBlank()) {
+      return StatementCriteria.defaultCriteria();
+    }
+
+    try {
+      com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+          new com.fasterxml.jackson.databind.ObjectMapper();
+      com.fasterxml.jackson.databind.node.ObjectNode node =
+          (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(json);
+
+      BigDecimal minimumBalance = null;
+      if (node.has("minimumBalance")) {
+        minimumBalance = new BigDecimal(node.get("minimumBalance").asText());
+      }
+
+      Integer minimumDaysOverdue = null;
+      if (node.has("minimumDaysOverdue")) {
+        minimumDaysOverdue = node.get("minimumDaysOverdue").asInt();
+      }
+
+      List<Long> contactIds = new ArrayList<>();
+      if (node.has("contactIds")) {
+        node.get("contactIds").forEach(n -> contactIds.add(n.asLong()));
+      }
+
+      boolean includeZeroBalance =
+          node.has("includeZeroBalance") && node.get("includeZeroBalance").asBoolean();
+
+      StatementType statementType = StatementType.OPEN_ITEM;
+      if (node.has("statementType")) {
+        try {
+          statementType = StatementType.valueOf(node.get("statementType").asText());
+        } catch (IllegalArgumentException ignored) {
+          // Use default OPEN_ITEM
+        }
+      }
+
+      LocalDate periodStart = null;
+      if (node.has("periodStart")) {
+        periodStart = LocalDate.parse(node.get("periodStart").asText());
+      }
+
+      return new StatementCriteria(
+          minimumBalance,
+          minimumDaysOverdue,
+          contactIds,
+          includeZeroBalance,
+          statementType,
+          periodStart);
+
+    } catch (Exception e) {
+      return StatementCriteria.defaultCriteria();
+    }
   }
 
   // Create Dialog
