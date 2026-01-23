@@ -47,4 +47,10 @@ public interface UserSecurityLevelRepository extends JpaRepository<UserSecurityL
      * Deletes all security levels for a company.
      */
     void deleteByCompany(Company company);
+
+    /**
+     * Finds all security levels for a company.
+     */
+    @Query("SELECT usl FROM UserSecurityLevel usl WHERE usl.company.id = :companyId")
+    java.util.List<UserSecurityLevel> findByCompanyId(@Param("companyId") Long companyId);
 }

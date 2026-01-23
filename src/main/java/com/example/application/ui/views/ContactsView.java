@@ -589,8 +589,9 @@ public class ContactsView extends VerticalLayout {
         if (!isNew && contact.getTaxOverrideCode() != null) taxOverrideField.setValue(contact.getTaxOverrideCode());
 
         Company company = companyContextService.getCurrentCompany();
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
         ComboBox<Account> defaultAccountCombo = new ComboBox<>("Default Account");
-        List<Account> accounts = accountService.findActiveByCompany(company);
+        List<Account> accounts = accountService.findActiveByCompanyWithSecurityLevel(company, securityLevel);
         defaultAccountCombo.setItems(accounts);
         defaultAccountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
         if (!isNew && contact.getDefaultAccount() != null) {

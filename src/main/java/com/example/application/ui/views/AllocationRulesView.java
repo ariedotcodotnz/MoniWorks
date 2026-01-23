@@ -234,7 +234,8 @@ public class AllocationRulesView extends VerticalLayout {
 
         targetAccountCombo = new ComboBox<>("Target Account");
         targetAccountCombo.setRequired(true);
-        List<Account> accounts = accountService.findActiveByCompany(company);
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> accounts = accountService.findActiveByCompanyWithSecurityLevel(company, securityLevel);
         targetAccountCombo.setItems(accounts);
         targetAccountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
         targetAccountCombo.setPlaceholder("Select account...");

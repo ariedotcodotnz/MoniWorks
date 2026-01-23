@@ -33,6 +33,7 @@
 - **Phase 25 Product CSV Import COMPLETE** - Tag: 0.3.7
 - **Phase 26 Role Management UI COMPLETE** - Tag: 0.3.8
 - **Phase 27 PDF Template Customization COMPLETE** - Tag: 0.3.9
+- **Phase 28 Security Level UI Enforcement COMPLETE** - Tag: 0.4.0
 - All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
@@ -824,6 +825,27 @@ Per specs, Release 1 must deliver:
   - Updated PDF generation to use company PdfSettings
   - Both export and email actions use company-configured settings
 
+### Phase 28: Security Level UI Enforcement (COMPLETE) - Tag: 0.4.0
+- [x] Account security level filtering in all views (spec 02, spec 03)
+  - AccountsView now uses findByCompanyWithSecurityLevel for account list and parent selector
+  - TransactionsView now uses findActiveByCompanyWithSecurityLevel for transaction line accounts
+  - BudgetsView now uses findByCompanyWithSecurityLevel for budget line account selector
+  - SalesInvoicesView now uses findByTypeWithSecurityLevel for income account selector
+  - SupplierBillsView now uses findByTypeWithSecurityLevel for expense account selector
+  - BankReconciliationView now uses findActiveByCompanyWithSecurityLevel for allocation accounts
+  - ContactsView now uses findActiveByCompanyWithSecurityLevel for default account selector
+  - ProductsView now uses findByTypeWithSecurityLevel for sales and purchase accounts
+  - AllocationRulesView now uses findActiveByCompanyWithSecurityLevel for target accounts
+- [x] User security level management UI (spec 02)
+  - Added security level display to user detail panel in UsersView
+  - Shows current max security level with explanation
+  - "Set Security Level" button opens dialog to configure level
+  - Level 0 = basic accounts only, Level 1+ = can view restricted accounts
+  - UserSecurityLevelRepository.findByCompanyId() method added for listing all levels
+  - Security levels stored in user_security_level table per user-company combination
+- [x] All 150 tests passing
+- [x] No forbidden markers (TODO/FIXME/etc)
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -878,6 +900,8 @@ Per specs, Release 1 must deliver:
 - ReflectionTestUtils.setField() used to inject @Value fields in unit tests
 - Spring Security @EventListener with AuthenticationSuccessEvent/AbstractAuthenticationFailureEvent provides login event tracking
 - LogoutHandler interface allows audit logging before session is destroyed during logout
+- Account security level filtering must be applied in ALL views that display account selectors - use companyContextService.getCurrentSecurityLevel() and the WithSecurityLevel service methods
+- UserSecurityLevelRepository can be injected directly into views for simple CRUD operations without needing a dedicated service
 
 ## Technical Notes
 - Build: `./mvnw compile`

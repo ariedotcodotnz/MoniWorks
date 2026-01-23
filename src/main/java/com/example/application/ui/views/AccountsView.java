@@ -164,7 +164,8 @@ public class AccountsView extends VerticalLayout {
 
     private void loadAccounts() {
         Company company = companyContextService.getCurrentCompany();
-        List<Account> allAccounts = accountService.findByCompany(company);
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> allAccounts = accountService.findByCompanyWithSecurityLevel(company, securityLevel);
 
         TreeData<Account> treeData = new TreeData<>();
 
@@ -236,7 +237,8 @@ public class AccountsView extends VerticalLayout {
 
         ComboBox<Account> parentCombo = new ComboBox<>("Parent Account");
         Company company = companyContextService.getCurrentCompany();
-        List<Account> possibleParents = accountService.findByCompany(company).stream()
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> possibleParents = accountService.findByCompanyWithSecurityLevel(company, securityLevel).stream()
             .filter(a -> !a.equals(account)) // Can't be own parent
             .toList();
         parentCombo.setItems(possibleParents);

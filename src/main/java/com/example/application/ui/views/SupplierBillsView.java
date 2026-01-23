@@ -696,7 +696,8 @@ public class SupplierBillsView extends VerticalLayout {
         priceField.setRequired(true);
 
         ComboBox<Account> accountCombo = new ComboBox<>("Expense Account");
-        List<Account> expenseAccounts = accountService.findByType(company.getId(), Account.AccountType.EXPENSE);
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> expenseAccounts = accountService.findByTypeWithSecurityLevel(company.getId(), Account.AccountType.EXPENSE, securityLevel);
         accountCombo.setItems(expenseAccounts);
         accountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
         accountCombo.setRequired(true);

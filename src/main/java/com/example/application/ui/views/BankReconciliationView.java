@@ -393,7 +393,8 @@ public class BankReconciliationView extends VerticalLayout {
         dialog.setWidth("600px");
 
         Company company = companyContextService.getCurrentCompany();
-        List<Account> accounts = accountService.findActiveByCompany(company);
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> accounts = accountService.findActiveByCompanyWithSecurityLevel(company, securityLevel);
         List<TaxCode> taxCodes = taxCodeService.findActiveByCompany(company);
 
         FormLayout form = new FormLayout();

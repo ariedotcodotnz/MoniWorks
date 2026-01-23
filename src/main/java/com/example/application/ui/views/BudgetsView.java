@@ -435,8 +435,9 @@ public class BudgetsView extends VerticalLayout {
             periodCombo.setValue(line.getPeriod());
         }
 
-        // Account selector
-        List<Account> accounts = accountService.findByCompany(company);
+        // Account selector - filtered by security level
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> accounts = accountService.findByCompanyWithSecurityLevel(company, securityLevel);
         ComboBox<Account> accountCombo = new ComboBox<>("Account");
         accountCombo.setItems(accounts);
         accountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());

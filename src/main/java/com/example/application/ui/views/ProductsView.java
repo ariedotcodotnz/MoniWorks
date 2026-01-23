@@ -438,14 +438,15 @@ public class ProductsView extends VerticalLayout {
         taxCodeCombo.setItems(taxCodes);
         if (!isNew && product.getTaxCode() != null) taxCodeCombo.setValue(product.getTaxCode());
 
-        // Accounts
-        List<Account> incomeAccounts = accountService.findByType(company.getId(), Account.AccountType.INCOME);
+        // Accounts - filtered by security level
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> incomeAccounts = accountService.findByTypeWithSecurityLevel(company.getId(), Account.AccountType.INCOME, securityLevel);
         ComboBox<Account> salesAccountCombo = new ComboBox<>("Sales Account");
         salesAccountCombo.setItems(incomeAccounts);
         salesAccountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
         if (!isNew && product.getSalesAccount() != null) salesAccountCombo.setValue(product.getSalesAccount());
 
-        List<Account> expenseAccounts = accountService.findByType(company.getId(), Account.AccountType.EXPENSE);
+        List<Account> expenseAccounts = accountService.findByTypeWithSecurityLevel(company.getId(), Account.AccountType.EXPENSE, securityLevel);
         ComboBox<Account> purchaseAccountCombo = new ComboBox<>("Purchase Account");
         purchaseAccountCombo.setItems(expenseAccounts);
         purchaseAccountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());

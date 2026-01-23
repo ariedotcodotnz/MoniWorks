@@ -786,7 +786,8 @@ public class SalesInvoicesView extends VerticalLayout {
         priceField.setRequired(true);
 
         ComboBox<Account> accountCombo = new ComboBox<>("Income Account");
-        List<Account> incomeAccounts = accountService.findByType(company.getId(), Account.AccountType.INCOME);
+        int securityLevel = companyContextService.getCurrentSecurityLevel();
+        List<Account> incomeAccounts = accountService.findByTypeWithSecurityLevel(company.getId(), Account.AccountType.INCOME, securityLevel);
         accountCombo.setItems(incomeAccounts);
         accountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
         accountCombo.setRequired(true);

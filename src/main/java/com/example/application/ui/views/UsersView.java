@@ -5,6 +5,8 @@ import com.example.application.domain.CompanyMembership;
 import com.example.application.domain.Role;
 import com.example.application.domain.User;
 import com.example.application.domain.UserInvitation;
+import com.example.application.domain.UserSecurityLevel;
+import com.example.application.repository.UserSecurityLevelRepository;
 import com.example.application.security.Permissions;
 import com.example.application.service.CompanyContextService;
 import com.example.application.service.InvitationService;
@@ -33,12 +35,12 @@ import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import jakarta.annotation.security.RolesAllowed;
-import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -57,6 +59,7 @@ public class UsersView extends VerticalLayout {
     private final RoleService roleService;
     private final CompanyContextService companyContextService;
     private final InvitationService invitationService;
+    private final UserSecurityLevelRepository securityLevelRepository;
 
     private final Grid<CompanyMembership> membershipGrid;
     private final Grid<UserInvitation> invitationsGrid;
@@ -67,11 +70,13 @@ public class UsersView extends VerticalLayout {
 
     public UsersView(UserService userService, RoleService roleService,
                      CompanyContextService companyContextService,
-                     InvitationService invitationService) {
+                     InvitationService invitationService,
+                     UserSecurityLevelRepository securityLevelRepository) {
         this.userService = userService;
         this.roleService = roleService;
         this.companyContextService = companyContextService;
         this.invitationService = invitationService;
+        this.securityLevelRepository = securityLevelRepository;
 
         setSizeFull();
         setPadding(false);
@@ -285,6 +290,7 @@ public class UsersView extends VerticalLayout {
 
     private void updateMembershipDetail() {
         User user = selectedMembership.getUser();
+        Company company = companyContextService.getCurrentCompany();
 
         H3 header = new H3(user.getDisplayName());
         header.addClassNames(LumoUtility.Margin.NONE);
@@ -295,9 +301,30 @@ public class UsersView extends VerticalLayout {
         Span roleLabel = new Span("Role: " + selectedMembership.getRole().getName());
         Span membershipStatusLabel = new Span("Membership: " + selectedMembership.getStatus().name());
 
+        // Security level section
+        H3 securityHeader = new H3("Account Security Level");
+        securityHeader.addClassNames(LumoUtility.Margin.Top.MEDIUM);
+
+        UserSecurityLevel securityLevel = securityLevelRepository
+            .findByUserAndCompany(user, company)
+            .orElse(null);
+
+        int currentLevel = securityLevel != null ? securityLevel.getMaxLevel() : 0;
+
+        Span securityInfo = new Span("Current level: " + currentLevel +
+            " (can view accounts with security level ≤ " + currentLevel + ")");
+        securityInfo.addClassNames(LumoUtility.FontSize.SMALL, LumoUtility.TextColor.SECONDARY);
+
+        Button setSecurityBtn = new Button("Set Security Level", VaadinIcon.LOCK.create());
+        setSecurityBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        setSecurityBtn.addClickListener(e -> showSecurityLevelDialog(selectedMembership, securityLevel));
+
+        HorizontalLayout securityLayout = new HorizontalLayout(securityInfo, setSecurityBtn);
+        securityLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+
         // Role permissions
         H3 permissionsHeader = new H3("Role Permissions");
-        permissionsHeader.addClassNames(LumoUtility.Margin.Top.LARGE);
+        permissionsHeader.addClassNames(LumoUtility.Margin.Top.MEDIUM);
 
         VerticalLayout permissionsLayout = new VerticalLayout();
         permissionsLayout.setPadding(false);
@@ -330,6 +357,7 @@ public class UsersView extends VerticalLayout {
         actions.add(changeRoleBtn, removeBtn, reactivateBtn);
 
         detailLayout.add(header, emailLabel, statusLabel, roleLabel, membershipStatusLabel,
+            securityHeader, securityLayout,
             permissionsHeader, permissionsLayout, actions);
     }
 
@@ -686,5 +714,71 @@ public class UsersView extends VerticalLayout {
             .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
         refreshGrid();
         updateDetailLayout();
+    }
+
+    private void showSecurityLevelDialog(CompanyMembership membership, UserSecurityLevel existingLevel) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Set Security Level for " + membership.getUser().getDisplayName());
+        dialog.setWidth("400px");
+
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+
+        Span description = new Span("Security levels control which accounts a user can view. " +
+            "Accounts with a security level higher than the user's max level will be hidden.");
+        description.getStyle().set("font-size", "var(--lumo-font-size-s)");
+        description.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+        Span examples = new Span("Examples: Level 0 = basic accounts, Level 1+ = restricted accounts (e.g., payroll)");
+        examples.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        examples.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+        IntegerField levelField = new IntegerField("Max Security Level");
+        levelField.setMin(0);
+        levelField.setMax(99);
+        levelField.setStepButtonsVisible(true);
+        levelField.setValue(existingLevel != null ? existingLevel.getMaxLevel() : 0);
+        levelField.setWidthFull();
+        levelField.setHelperText("User can view accounts with security level ≤ this value (0 = basic only)");
+
+        content.add(description, examples, levelField);
+        dialog.add(content);
+
+        Button saveBtn = new Button("Save", e -> {
+            if (levelField.getValue() == null) {
+                Notification.show("Please enter a security level", 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                return;
+            }
+
+            try {
+                Company company = companyContextService.getCurrentCompany();
+                User user = membership.getUser();
+                int newLevel = levelField.getValue();
+
+                UserSecurityLevel level = existingLevel;
+                if (level == null) {
+                    level = new UserSecurityLevel(user, company, newLevel);
+                } else {
+                    level.setMaxLevel(newLevel);
+                }
+                securityLevelRepository.save(level);
+
+                Notification.show("Security level updated to " + newLevel, 3000, Notification.Position.BOTTOM_START)
+                    .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                dialog.close();
+                updateDetailLayout();
+            } catch (Exception ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        Button cancelBtn = new Button("Cancel", e -> dialog.close());
+
+        dialog.getFooter().add(cancelBtn, saveBtn);
+        dialog.open();
     }
 }
