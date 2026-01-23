@@ -44,7 +44,8 @@
 - **Phase 36 Quality Tooling & Keyboard Shortcuts COMPLETE** - Tag: 0.4.8
 - **Phase 37 KPI & Income Trend Charting COMPLETE** - Tag: 0.4.9
 - **Phase 38 Bank Reconciliation Status Report COMPLETE** - Tag: 0.5.0
-- All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4)
+- **Phase 39 SMTP Email Sending COMPLETE** - Tag: 0.5.1
+- All 152 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
@@ -1076,6 +1077,30 @@ Per specs, Release 1 must deliver:
 - [x] All 150 tests passing
 - [x] No forbidden markers
 
+### Phase 39: SMTP Email Sending (COMPLETE) - Tag: 0.5.1
+- [x] EmailService SMTP integration (spec 13)
+  - Updated EmailService to use JavaMailSender for actual email sending
+  - Supports text and HTML email bodies
+  - Supports multipart messages with PDF attachments
+  - Graceful fallback when SMTP not configured (returns queued status for backwards compatibility)
+  - Proper error handling for MessagingException and MailException
+- [x] SMTP configuration via Spring Boot properties
+  - Added spring-boot-starter-mail dependency to pom.xml
+  - Documented SMTP configuration in application.properties
+  - Example configurations for Gmail, Office 365, and generic SMTP
+  - Disabled by default (moniworks.email.enabled=false)
+- [x] Backwards compatibility
+  - When email disabled: returns DISABLED status (no change)
+  - When email enabled but no SMTP configured: returns QUEUED status (stub behavior)
+  - When email enabled with SMTP configured: actually sends and returns SENT status
+- [x] Test coverage
+  - Added tests for SMTP sending success
+  - Added tests for SMTP send failure (MailSendException)
+  - Added tests for fallback when JavaMailSender not configured
+  - Updated all existing tests to use mocked JavaMailSender
+- [x] All 152 tests passing (EmailServiceTest: 23)
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1142,6 +1167,9 @@ Per specs, Release 1 must deliver:
 - Google Java Format via Spotless changes all existing code formatting - run spotless:apply before committing formatted changes
 - Vaadin Charts requires commercial license; for open source use SparklineChart component (CSS-based) or ApexCharts-flow addon (Apache 2.0 licensed, but may need version matching for Vaadin 25)
 - SparklineChart provides lightweight charting without external dependencies using CSS flexbox and styled divs
+- JavaMailSender can be injected with @Autowired(required = false) to gracefully handle missing SMTP configuration
+- MimeMessage with MimeMultipart supports text/HTML body plus PDF attachments via ByteArrayDataSource and DataHandler
+- Spring Boot auto-configures JavaMailSender bean when spring.mail.* properties are set and spring-boot-starter-mail is on classpath
 
 ## Technical Notes
 - Build: `./mvnw compile`

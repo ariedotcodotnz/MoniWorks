@@ -1,10 +1,14 @@
 package com.example.application.service;
 
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import com.example.application.domain.Company;
@@ -12,16 +16,24 @@ import com.example.application.domain.Contact;
 import com.example.application.domain.SalesInvoice;
 import com.example.application.domain.User;
 
+import jakarta.activation.DataHandler;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.util.ByteArrayDataSource;
+
 /**
- * Service for sending emails with PDF attachments.
+ * Service for sending emails with PDF attachments via SMTP.
  *
- * <p>v1 Implementation: This is a stub implementation that logs email requests and prepares email
- * content but does not actually send emails. The interface is designed to be easily replaced with a
- * real implementation (SMTP, SendGrid, etc.) when email sending is required.
+ * <p>When email is enabled and SMTP is configured, emails are sent via JavaMailSender. When
+ * disabled or SMTP is not configured, the service logs email requests for audit/debugging but does
+ * not send.
  *
- * <p>Current behavior: - Logs all email requests for audit/debugging - Validates email addresses
- * and content - Returns EmailResult with success/failure status - Actual sending is disabled
- * (returns "queued" status)
+ * <p>Configuration: - moniworks.email.enabled: Set to true to enable sending - spring.mail.*:
+ * Standard Spring Boot mail properties for SMTP configuration - moniworks.email.from-address:
+ * Sender email address - moniworks.email.from-name: Sender display name
  */
 @Service
 public class EmailService {
@@ -38,9 +50,13 @@ public class EmailService {
   private String fromName;
 
   private final AuditService auditService;
+  private final JavaMailSender mailSender;
 
-  public EmailService(AuditService auditService) {
+  @Autowired
+  public EmailService(
+      AuditService auditService, @Autowired(required = false) JavaMailSender mailSender) {
     this.auditService = auditService;
+    this.mailSender = mailSender;
   }
 
   /** Result of an email send attempt. */
@@ -200,14 +216,91 @@ public class EmailService {
       return EmailResult.disabled();
     }
 
+    // Check if mail sender is configured
+    if (mailSender == null) {
+      log.warn(
+          "Email enabled but JavaMailSender not configured. Would send to: {} subject: {}",
+          request.toAddress(),
+          request.subject());
+
+      // Log and return queued status (for backwards compatibility with stub behavior)
+      if (request.company() != null) {
+        auditService.logEvent(
+            request.company(),
+            request.sender(),
+            "EMAIL_QUEUED",
+            "EMAIL",
+            null,
+            String.format(
+                "Email queued (SMTP not configured) to: %s, subject: %s",
+                request.toAddress(), request.subject()));
+      }
+
+      return EmailResult.queued(generateMessageId());
+    }
+
     // Generate a message ID for tracking
     String messageId = generateMessageId();
 
     try {
-      // In v1, we just log the email request
-      // In a real implementation, this would send via SMTP, SendGrid, etc.
+      // Create and send the email via SMTP
+      MimeMessage mimeMessage = mailSender.createMimeMessage();
+
+      // Set From address
+      mimeMessage.setFrom(new InternetAddress(fromAddress, fromName));
+
+      // Set To address
+      if (request.toName() != null && !request.toName().isBlank()) {
+        mimeMessage.setRecipient(
+            MimeMessage.RecipientType.TO,
+            new InternetAddress(request.toAddress(), request.toName()));
+      } else {
+        mimeMessage.setRecipient(
+            MimeMessage.RecipientType.TO, new InternetAddress(request.toAddress()));
+      }
+
+      // Set Subject
+      mimeMessage.setSubject(request.subject());
+
+      // Build message content
+      if (request.attachments() != null && !request.attachments().isEmpty()) {
+        // Multipart message with attachments
+        MimeMultipart multipart = new MimeMultipart();
+
+        // Add body part
+        MimeBodyPart textPart = new MimeBodyPart();
+        if (request.bodyHtml() != null && !request.bodyHtml().isBlank()) {
+          textPart.setContent(request.bodyHtml(), "text/html; charset=UTF-8");
+        } else {
+          textPart.setText(request.bodyText(), "UTF-8");
+        }
+        multipart.addBodyPart(textPart);
+
+        // Add attachments
+        for (EmailAttachment attachment : request.attachments()) {
+          MimeBodyPart attachmentPart = new MimeBodyPart();
+          ByteArrayDataSource dataSource =
+              new ByteArrayDataSource(attachment.content(), attachment.mimeType());
+          attachmentPart.setDataHandler(new DataHandler(dataSource));
+          attachmentPart.setFileName(attachment.filename());
+          multipart.addBodyPart(attachmentPart);
+        }
+
+        mimeMessage.setContent(multipart);
+      } else {
+        // Simple message without attachments
+        if (request.bodyHtml() != null && !request.bodyHtml().isBlank()) {
+          mimeMessage.setContent(request.bodyHtml(), "text/html; charset=UTF-8");
+        } else {
+          mimeMessage.setText(request.bodyText(), "UTF-8");
+        }
+      }
+
+      // Send the email
+      mailSender.send(mimeMessage);
+
       log.info(
-          "Email queued [{}]: to={}, subject={}, attachments={}",
+          "Email sent [{}]: to={}, subject={}, attachments={}",
           messageId,
           request.toAddress(),
           request.subject(),
@@ -226,9 +319,12 @@ public class EmailService {
                 request.toAddress(), request.subject(), messageId));
       }
 
-      return EmailResult.queued(messageId);
+      return EmailResult.sent(messageId);
 
-    } catch (Exception e) {
+    } catch (MessagingException | UnsupportedEncodingException e) {
+      log.error("Failed to compose email to {}: {}", request.toAddress(), e.getMessage(), e);
+      return EmailResult.failed("Failed to compose email: " + e.getMessage());
+    } catch (MailException e) {
       log.error("Failed to send email to {}: {}", request.toAddress(), e.getMessage(), e);
       return EmailResult.failed("Failed to send email: " + e.getMessage());
     }

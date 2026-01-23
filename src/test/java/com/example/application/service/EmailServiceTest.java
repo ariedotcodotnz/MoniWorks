@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.MailSendException;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.application.domain.*;
@@ -19,16 +21,21 @@ import com.example.application.service.EmailService.EmailAttachment;
 import com.example.application.service.EmailService.EmailRequest;
 import com.example.application.service.EmailService.EmailResult;
 
+import jakarta.mail.internet.MimeMessage;
+
 /**
- * Unit tests for EmailService. Tests email validation, result handling, and specialized email
- * methods.
+ * Unit tests for EmailService. Tests email validation, result handling, SMTP sending, and
+ * specialized email methods.
  */
 @ExtendWith(MockitoExtension.class)
 class EmailServiceTest {
 
   @Mock private AuditService auditService;
+  @Mock private JavaMailSender mailSender;
+  @Mock private MimeMessage mimeMessage;
 
   private EmailService emailService;
+  private EmailService emailServiceNoMailSender;
 
   private Company company;
   private User user;
@@ -36,12 +43,20 @@ class EmailServiceTest {
 
   @BeforeEach
   void setUp() {
-    emailService = new EmailService(auditService);
+    // Service with mail sender configured
+    emailService = new EmailService(auditService, mailSender);
+
+    // Service without mail sender (simulates stub mode)
+    emailServiceNoMailSender = new EmailService(auditService, null);
 
     // Default: email disabled
     ReflectionTestUtils.setField(emailService, "emailEnabled", false);
     ReflectionTestUtils.setField(emailService, "fromAddress", "noreply@test.local");
     ReflectionTestUtils.setField(emailService, "fromName", "Test App");
+
+    ReflectionTestUtils.setField(emailServiceNoMailSender, "emailEnabled", false);
+    ReflectionTestUtils.setField(emailServiceNoMailSender, "fromAddress", "noreply@test.local");
+    ReflectionTestUtils.setField(emailServiceNoMailSender, "fromName", "Test App");
 
     company = new Company();
     company.setId(1L);
@@ -80,9 +95,10 @@ class EmailServiceTest {
   }
 
   @Test
-  void sendEmail_ValidRequest_WhenEnabled_ReturnsQueuedStatus() {
+  void sendEmail_ValidRequest_WhenEnabled_ReturnsSentStatus() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
     EmailRequest request =
         EmailRequest.builder()
@@ -98,8 +114,11 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
-    assertEquals("QUEUED", result.status());
+    assertEquals("SENT", result.status());
     assertNotNull(result.messageId());
+
+    // Verify email was sent
+    verify(mailSender).send(mimeMessage);
 
     // Verify audit logging
     verify(auditService)
@@ -110,6 +129,54 @@ class EmailServiceTest {
             eq("EMAIL"),
             isNull(),
             contains("recipient@example.com"));
+  }
+
+  @Test
+  void sendEmail_ValidRequest_WhenEnabledNoMailSender_ReturnsQueuedStatus() {
+    // Given - using service without mail sender
+    ReflectionTestUtils.setField(emailServiceNoMailSender, "emailEnabled", true);
+
+    EmailRequest request =
+        EmailRequest.builder()
+            .to("recipient@example.com", "Recipient")
+            .subject("Test Subject")
+            .bodyText("Test body content")
+            .company(company)
+            .sender(user)
+            .build();
+
+    // When
+    EmailResult result = emailServiceNoMailSender.sendEmail(request);
+
+    // Then - falls back to queued status when SMTP not configured
+    assertTrue(result.success());
+    assertEquals("QUEUED", result.status());
+    assertNotNull(result.messageId());
+  }
+
+  @Test
+  void sendEmail_MailSendException_ReturnsFailed() {
+    // Given
+    ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+    doThrow(new MailSendException("SMTP connection failed"))
+        .when(mailSender)
+        .send(any(MimeMessage.class));
+
+    EmailRequest request =
+        EmailRequest.builder()
+            .to("recipient@example.com", "Recipient")
+            .subject("Test Subject")
+            .bodyText("Test body content")
+            .build();
+
+    // When
+    EmailResult result = emailService.sendEmail(request);
+
+    // Then
+    assertFalse(result.success());
+    assertEquals("FAILED", result.status());
+    assertTrue(result.message().contains("SMTP connection failed"));
   }
 
   @Test
@@ -199,6 +266,7 @@ class EmailServiceTest {
   void sendEmail_HtmlBodyOnly_Succeeds() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
     EmailRequest request =
         EmailRequest.builder()
@@ -214,13 +282,15 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
-    assertEquals("QUEUED", result.status());
+    assertEquals("SENT", result.status());
+    verify(mailSender).send(mimeMessage);
   }
 
   @Test
-  void sendEmail_WithAttachments_LogsAttachmentCount() {
+  void sendEmail_WithAttachments_SendsMultipartEmail() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
     EmailAttachment attachment =
         new EmailAttachment("document.pdf", "application/pdf", "content".getBytes());
@@ -240,12 +310,15 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
+    assertEquals("SENT", result.status());
+    verify(mailSender).send(mimeMessage);
   }
 
   @Test
   void sendInvoice_ValidInvoice_SendsEmail() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
     SalesInvoice invoice = new SalesInvoice();
     invoice.setId(1L);
@@ -262,7 +335,8 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
-    assertEquals("QUEUED", result.status());
+    assertEquals("SENT", result.status());
+    verify(mailSender).send(mimeMessage);
   }
 
   @Test
@@ -313,6 +387,7 @@ class EmailServiceTest {
   void sendStatement_ValidContact_SendsEmail() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
     byte[] pdfContent = "Statement PDF".getBytes();
 
     // When
@@ -320,13 +395,15 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
-    assertEquals("QUEUED", result.status());
+    assertEquals("SENT", result.status());
+    verify(mailSender).send(mimeMessage);
   }
 
   @Test
   void sendRemittanceAdvice_ValidContact_SendsEmail() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
     byte[] pdfContent = "Remittance PDF".getBytes();
 
     // When
@@ -334,13 +411,15 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
-    assertEquals("QUEUED", result.status());
+    assertEquals("SENT", result.status());
+    verify(mailSender).send(mimeMessage);
   }
 
   @Test
   void sendReport_ValidRequest_SendsEmail() {
     // Given
     ReflectionTestUtils.setField(emailService, "emailEnabled", true);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
     byte[] pdfContent = "Report PDF".getBytes();
 
     // When
@@ -350,7 +429,8 @@ class EmailServiceTest {
 
     // Then
     assertTrue(result.success());
-    assertEquals("QUEUED", result.status());
+    assertEquals("SENT", result.status());
+    verify(mailSender).send(mimeMessage);
   }
 
   @Test
