@@ -265,7 +265,8 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
     User user = companyContextService.getCurrentUser();
     if (company != null && user != null) {
       gridCustomizer =
-          new GridCustomizer<>(grid, SavedView.EntityType.SUPPLIER_BILL, savedViewService, company, user);
+          new GridCustomizer<>(
+              grid, SavedView.EntityType.SUPPLIER_BILL, savedViewService, company, user);
     }
 
     Button refreshButton = new Button(VaadinIcon.REFRESH.create());
@@ -632,11 +633,7 @@ public class SupplierBillsView extends VerticalLayout implements BeforeEnterObse
     User user = companyContextService.getCurrentUser();
     AttachmentSection attachmentSection =
         new AttachmentSection(
-            attachmentService,
-            AttachmentLink.EntityType.BILL,
-            bill.getId(),
-            company,
-            user);
+            attachmentService, AttachmentLink.EntityType.BILL, bill.getId(), company, user);
     detailLayout.add(attachmentSection);
   }
 

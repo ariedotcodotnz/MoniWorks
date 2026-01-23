@@ -341,11 +341,7 @@ public class ContactsView extends VerticalLayout {
     User user = companyContextService.getCurrentUser();
     AttachmentSection attachmentSection =
         new AttachmentSection(
-            attachmentService,
-            AttachmentLink.EntityType.CONTACT,
-            contact.getId(),
-            company,
-            user);
+            attachmentService, AttachmentLink.EntityType.CONTACT, contact.getId(), company, user);
 
     VerticalLayout layout = new VerticalLayout();
     layout.setPadding(true);

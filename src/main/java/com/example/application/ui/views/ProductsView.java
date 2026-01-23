@@ -394,11 +394,7 @@ public class ProductsView extends VerticalLayout {
     User user = companyContextService.getCurrentUser();
     AttachmentSection attachmentSection =
         new AttachmentSection(
-            attachmentService,
-            AttachmentLink.EntityType.PRODUCT,
-            product.getId(),
-            company,
-            user);
+            attachmentService, AttachmentLink.EntityType.PRODUCT, product.getId(), company, user);
     detailLayout.add(attachmentSection);
   }
 
