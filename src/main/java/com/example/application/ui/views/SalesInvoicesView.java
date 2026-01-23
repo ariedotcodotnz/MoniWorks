@@ -21,6 +21,7 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
@@ -871,6 +872,15 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
               });
     }
 
+    // Sticky note display area (Spec 08: sticky note appears when product selected)
+    Div stickyNoteDisplay = new Div();
+    stickyNoteDisplay.getStyle().set("background-color", "var(--lumo-primary-color-10pct)");
+    stickyNoteDisplay.getStyle().set("border-left", "4px solid var(--lumo-primary-color)");
+    stickyNoteDisplay.getStyle().set("padding", "var(--lumo-space-s) var(--lumo-space-m)");
+    stickyNoteDisplay.getStyle().set("margin", "var(--lumo-space-s) 0");
+    stickyNoteDisplay.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
+    stickyNoteDisplay.setVisible(false);
+
     // Auto-fill from product (overrides contact default if product has tax code)
     productCombo.addValueChangeListener(
         e -> {
@@ -889,10 +899,23 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
                   .findFirst()
                   .ifPresent(taxCodeCombo::setValue);
             }
+            // Display sticky note if present (Spec 08 acceptance criteria)
+            if (product.getStickyNote() != null && !product.getStickyNote().isBlank()) {
+              stickyNoteDisplay.removeAll();
+              Span icon = new Span("📝 ");
+              Span noteText = new Span(product.getStickyNote());
+              stickyNoteDisplay.add(icon, noteText);
+              stickyNoteDisplay.setVisible(true);
+            } else {
+              stickyNoteDisplay.setVisible(false);
+            }
+          } else {
+            stickyNoteDisplay.setVisible(false);
           }
         });
 
     form.add(productCombo, 2);
+    form.add(stickyNoteDisplay, 2);
     form.add(descriptionField, 2);
     form.add(quantityField, priceField);
     form.add(accountCombo, taxCodeCombo);
