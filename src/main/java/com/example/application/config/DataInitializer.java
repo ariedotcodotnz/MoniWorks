@@ -1,6 +1,7 @@
 package com.example.application.config;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -12,10 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.application.domain.Company;
 import com.example.application.domain.CompanyMembership;
+import com.example.application.domain.Permission;
 import com.example.application.domain.Role;
 import com.example.application.domain.User;
 import com.example.application.repository.CompanyMembershipRepository;
 import com.example.application.repository.CompanyRepository;
+import com.example.application.repository.PermissionRepository;
 import com.example.application.repository.RoleRepository;
 import com.example.application.service.UserService;
 
@@ -36,16 +39,19 @@ public class DataInitializer implements ApplicationRunner {
   private final CompanyRepository companyRepository;
   private final RoleRepository roleRepository;
   private final CompanyMembershipRepository membershipRepository;
+  private final PermissionRepository permissionRepository;
 
   public DataInitializer(
       UserService userService,
       CompanyRepository companyRepository,
       RoleRepository roleRepository,
-      CompanyMembershipRepository membershipRepository) {
+      CompanyMembershipRepository membershipRepository,
+      PermissionRepository permissionRepository) {
     this.userService = userService;
     this.companyRepository = companyRepository;
     this.roleRepository = roleRepository;
     this.membershipRepository = membershipRepository;
+    this.permissionRepository = permissionRepository;
   }
 
   @Override
@@ -81,12 +87,30 @@ public class DataInitializer implements ApplicationRunner {
   private Role getOrCreateAdminRole() {
     Optional<Role> existingRole = roleRepository.findByNameAndSystemTrue("ADMIN");
     if (existingRole.isPresent()) {
-      return existingRole.get();
+      Role role = existingRole.get();
+      // Ensure the ADMIN role has all permissions (fix for cases where role exists but permissions weren't assigned)
+      if (role.getPermissions().isEmpty()) {
+        log.info("ADMIN role exists but has no permissions - assigning all permissions");
+        assignAllPermissionsToRole(role);
+        return roleRepository.save(role);
+      }
+      return role;
     }
 
     log.info("Creating ADMIN role (Flyway migrations may not have run for this database)");
     Role adminRole = new Role("ADMIN", "Full administrative access");
     adminRole.setSystem(true);
+    assignAllPermissionsToRole(adminRole);
     return roleRepository.save(adminRole);
+  }
+
+  private void assignAllPermissionsToRole(Role role) {
+    List<Permission> allPermissions = permissionRepository.findAll();
+    if (allPermissions.isEmpty()) {
+      log.warn("No permissions found in database - ADMIN role will have limited access until permissions are created");
+    } else {
+      log.info("Assigning {} permissions to ADMIN role", allPermissions.size());
+      allPermissions.forEach(role::addPermission);
+    }
   }
 }

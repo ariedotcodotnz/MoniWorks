@@ -12,3 +12,9 @@
 node_modules/
 src/main/frontend/
 vite.generated.ts
+
+# H2 database files (development)
+/data/
+*.db
+*.trace.db
+*.lock.db

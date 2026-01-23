@@ -3,6 +3,8 @@ package com.example.application.service;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,8 @@ import com.vaadin.flow.spring.annotation.VaadinSessionScope;
 @VaadinSessionScope
 public class CompanyContextService {
 
+  private static final Logger log = LoggerFactory.getLogger(CompanyContextService.class);
+
   private final CompanyService companyService;
   private final UserRepository userRepository;
   private final CompanyMembershipRepository membershipRepository;
@@ -46,12 +50,24 @@ public class CompanyContextService {
   }
 
   /**
-   * Gets the current company for this session. If no company exists, creates a default one.
+   * Gets the current company for this session. Prefers a company where the user has an active
+   * membership. If no such company exists, falls back to the first available company or creates a
+   * default one.
    *
    * @return the current company
    */
   public Company getCurrentCompany() {
     if (currentCompany == null) {
+      // First, try to get a company where the current user has an active membership
+      User user = getCurrentUser();
+      if (user != null) {
+        List<Company> accessibleCompanies = membershipRepository.findCompaniesByActiveUser(user);
+        if (!accessibleCompanies.isEmpty()) {
+          currentCompany = accessibleCompanies.get(0);
+          return currentCompany;
+        }
+      }
+      // Fall back to first company or create default
       currentCompany =
           companyService.findAll().stream().findFirst().orElseGet(this::createDefaultCompany);
     }
@@ -157,14 +173,33 @@ public class CompanyContextService {
    */
   public boolean hasPermission(String permissionName) {
     CompanyMembership membership = getCurrentMembership();
-    if (membership == null || membership.getStatus() != CompanyMembership.MembershipStatus.ACTIVE) {
+    if (membership == null) {
+      log.debug(
+          "Permission check for '{}' failed: no membership found for user '{}' in company '{}'",
+          permissionName,
+          getCurrentUser() != null ? getCurrentUser().getEmail() : "null",
+          getCurrentCompany() != null ? getCurrentCompany().getName() : "null");
+      return false;
+    }
+    if (membership.getStatus() != CompanyMembership.MembershipStatus.ACTIVE) {
+      log.debug(
+          "Permission check for '{}' failed: membership status is {}",
+          permissionName,
+          membership.getStatus());
       return false;
     }
     // ADMIN has all permissions
     if (membership.getRole().hasPermission(Permissions.ADMIN)) {
       return true;
     }
-    return membership.getRole().hasPermission(permissionName);
+    boolean hasPermission = membership.getRole().hasPermission(permissionName);
+    if (!hasPermission) {
+      log.debug(
+          "Permission check for '{}' failed: role '{}' does not have this permission",
+          permissionName,
+          membership.getRole().getName());
+    }
+    return hasPermission;
   }
 
   /**
