@@ -83,6 +83,7 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
   private final SupplierBillService supplierBillService;
   private final BankImportService bankImportService;
   private final TransactionImportService transactionImportService;
+  private final ContactService contactService;
 
   private final Grid<Transaction> grid = new Grid<>();
   private final ComboBox<TransactionType> typeFilter = new ComboBox<>();
@@ -104,7 +105,8 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
       PayableAllocationService payableAllocationService,
       SupplierBillService supplierBillService,
       BankImportService bankImportService,
-      TransactionImportService transactionImportService) {
+      TransactionImportService transactionImportService,
+      ContactService contactService) {
     this.transactionService = transactionService;
     this.postingService = postingService;
     this.accountService = accountService;
@@ -118,6 +120,7 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     this.supplierBillService = supplierBillService;
     this.bankImportService = bankImportService;
     this.transactionImportService = transactionImportService;
+    this.contactService = contactService;
 
     addClassName("transactions-view");
     setSizeFull();
@@ -467,6 +470,14 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     addLineForm.setWidthFull();
     addLineForm.setAlignItems(FlexComponent.Alignment.END);
 
+    // Contact/Payee selector (Spec 07 - Contact default allocation prefill)
+    List<Contact> contacts = contactService.findActiveByCompany(company);
+    ComboBox<Contact> contactCombo = new ComboBox<>("Payee/Contact");
+    contactCombo.setItems(contacts);
+    contactCombo.setItemLabelGenerator(c -> c.getCode() + " - " + c.getName());
+    contactCombo.setClearButtonVisible(true);
+    contactCombo.setWidth("200px");
+
     ComboBox<Account> accountCombo = new ComboBox<>("Account");
     accountCombo.setItems(accounts);
     accountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
@@ -484,6 +495,31 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     taxCodeCombo.setItemLabelGenerator(TaxCode::getCode);
     taxCodeCombo.setClearButtonVisible(true);
     taxCodeCombo.setWidth("100px");
+
+    // Auto-populate account and tax code from contact's defaults (Spec 07)
+    contactCombo.addValueChangeListener(
+        event -> {
+          Contact selectedContact = event.getValue();
+          if (selectedContact != null) {
+            // Prefill default account if set
+            if (selectedContact.getDefaultAccount() != null) {
+              Account defaultAcct = selectedContact.getDefaultAccount();
+              accounts.stream()
+                  .filter(a -> a.getId().equals(defaultAcct.getId()))
+                  .findFirst()
+                  .ifPresent(accountCombo::setValue);
+            }
+            // Prefill tax override code if set
+            if (selectedContact.getTaxOverrideCode() != null
+                && !selectedContact.getTaxOverrideCode().isBlank()) {
+              String taxOverride = selectedContact.getTaxOverrideCode();
+              taxCodes.stream()
+                  .filter(tc -> tc.getCode().equals(taxOverride))
+                  .findFirst()
+                  .ifPresent(taxCodeCombo::setValue);
+            }
+          }
+        });
 
     // Auto-populate tax code from account's default tax code (Spec 06)
     accountCombo.addValueChangeListener(
@@ -597,6 +633,7 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
           updateBalance(lineEntries, balanceSpan);
 
           // Clear fields for next entry
+          contactCombo.clear();
           accountCombo.clear();
           directionCombo.clear();
           amountField.clear();
@@ -607,7 +644,14 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
           accountCombo.focus();
         });
 
-    addLineForm.add(accountCombo, directionCombo, amountField, taxCodeCombo, memoField, addLineBtn);
+    addLineForm.add(
+        contactCombo,
+        accountCombo,
+        directionCombo,
+        amountField,
+        taxCodeCombo,
+        memoField,
+        addLineBtn);
 
     // Suggestion row layout
     HorizontalLayout suggestionRow = new HorizontalLayout(suggestionSpan, applySuggestionBtn);

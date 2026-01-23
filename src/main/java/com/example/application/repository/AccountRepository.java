@@ -22,6 +22,10 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
   boolean existsByCompanyAndCode(Company company, String code);
 
+  Optional<Account> findByCompanyAndAltCode(Company company, String altCode);
+
+  boolean existsByCompanyAndAltCode(Company company, String altCode);
+
   @Query("SELECT a FROM Account a WHERE a.company = :company AND a.parent IS NULL ORDER BY a.code")
   List<Account> findRootAccountsByCompany(@Param("company") Company company);
 

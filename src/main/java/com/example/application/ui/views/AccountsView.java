@@ -82,6 +82,8 @@ public class AccountsView extends VerticalLayout {
 
     grid.addColumn(Account::getName).setHeader("Name").setSortable(true).setFlexGrow(1);
 
+    grid.addColumn(Account::getAltCode).setHeader("Alt Code").setSortable(true).setAutoWidth(true);
+
     grid.addColumn(account -> account.getType().name())
         .setHeader("Type")
         .setSortable(true)
@@ -202,7 +204,9 @@ public class AccountsView extends VerticalLayout {
       dataProvider.setFilter(
           account ->
               account.getCode().toLowerCase().contains(lowerSearch)
-                  || account.getName().toLowerCase().contains(lowerSearch));
+                  || account.getName().toLowerCase().contains(lowerSearch)
+                  || (account.getAltCode() != null
+                      && account.getAltCode().toLowerCase().contains(lowerSearch)));
     }
   }
 

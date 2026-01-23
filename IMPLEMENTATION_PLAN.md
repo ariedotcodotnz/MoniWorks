@@ -55,6 +55,7 @@
 - **Phase 48 Email Statements to Customers COMPLETE** - Tag: 0.6.0
 - **Phase 49 Supplier Bill PDF Export COMPLETE** - Tag: 0.6.1
 - **Phase 50 ReversalLink Entity COMPLETE** - Tag: 0.6.2
+- **Phase 51 Account Alt Code Enhancement & Contact Transaction Prefill COMPLETE** - Tag: 0.6.3
 - All 255 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1402,6 +1403,27 @@ Per specs, Release 1 must deliver:
   - Added findReversalLink() and findOriginalLink() helper methods
 - [x] PostingServiceTest updated with ReversalLinkRepository mock
   - Verifies ReversalLink is created when reversing a transaction
+- [x] All 255 tests passing
+- [x] No forbidden markers
+
+### Phase 51: Account Alt Code Enhancement & Contact Transaction Prefill (COMPLETE) - Tag: 0.6.3
+- [x] Account altCode repository and service methods (spec 03)
+  - Added findByCompanyAndAltCode() to AccountRepository
+  - Added existsByCompanyAndAltCode() to AccountRepository
+  - Added findByCompanyAndAltCode() to AccountService
+  - Added findByCompanyAndCodeOrAltCode() to AccountService for unified lookup
+- [x] Account altCode display in UI (spec 03)
+  - Added Alt Code column to AccountsView TreeGrid
+  - Account search now includes altCode field
+- [x] Account altCode audit logging (spec 03)
+  - AccountService.save() now tracks altCode changes in audit log
+- [x] Contact default account prefilling in transactions (spec 07)
+  - Added ContactService dependency to TransactionsView
+  - Added Payee/Contact ComboBox to transaction line entry form
+  - When contact selected, auto-populates:
+    - Default account from contact.defaultAccount
+    - Tax override from contact.taxOverrideCode
+  - Contact field cleared when line is added
 - [x] All 255 tests passing
 - [x] No forbidden markers
 

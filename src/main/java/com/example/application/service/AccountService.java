@@ -123,6 +123,36 @@ public class AccountService {
     return accountRepository.findByCompanyAndCode(company, code);
   }
 
+  /**
+   * Finds an account by its alternate code.
+   *
+   * @param company the company
+   * @param altCode the alternate code
+   * @return the account if found
+   */
+  @Transactional(readOnly = true)
+  public Optional<Account> findByCompanyAndAltCode(Company company, String altCode) {
+    return accountRepository.findByCompanyAndAltCode(company, altCode);
+  }
+
+  /**
+   * Finds an account by either its primary code or alternate code.
+   *
+   * @param company the company
+   * @param code the code to search (checks both code and altCode)
+   * @return the account if found
+   */
+  @Transactional(readOnly = true)
+  public Optional<Account> findByCompanyAndCodeOrAltCode(Company company, String code) {
+    // First try primary code
+    Optional<Account> byCode = accountRepository.findByCompanyAndCode(company, code);
+    if (byCode.isPresent()) {
+      return byCode;
+    }
+    // Fall back to alternate code
+    return accountRepository.findByCompanyAndAltCode(company, code);
+  }
+
   @Transactional(readOnly = true)
   public Optional<Account> findById(Long id) {
     return accountRepository.findById(id);
@@ -246,6 +276,13 @@ public class AccountService {
         if (before.isBankAccount() != account.isBankAccount()) {
           changes.put(
               "bankAccount", Map.of("from", before.isBankAccount(), "to", account.isBankAccount()));
+        }
+        if (!java.util.Objects.equals(before.getAltCode(), account.getAltCode())) {
+          changes.put(
+              "altCode",
+              Map.of(
+                  "from", before.getAltCode() != null ? before.getAltCode() : "",
+                  "to", account.getAltCode() != null ? account.getAltCode() : ""));
         }
 
         if (!changes.isEmpty()) {
