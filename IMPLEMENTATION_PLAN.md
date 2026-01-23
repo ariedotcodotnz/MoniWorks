@@ -35,6 +35,7 @@
 - **Phase 27 PDF Template Customization COMPLETE** - Tag: 0.3.9
 - **Phase 28 Security Level UI Enforcement COMPLETE** - Tag: 0.4.0
 - **Phase 29 Bank Register Report COMPLETE** - Tag: 0.4.1
+- **Phase 30 Bank Register Transaction Drilldown COMPLETE** - Tag: 0.4.2
 - All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
@@ -876,6 +877,22 @@ Per specs, Release 1 must deliver:
   - PDF/Excel export buttons
 - [x] All 150 tests passing
 - [x] No forbidden markers
+
+### Phase 30: Bank Register Transaction Drilldown (COMPLETE) - Tag: 0.4.2
+- [x] Transaction detail drilldown dialog (spec 13 - report drilldown)
+  - Added TransactionService injection to ReportsView
+  - Created openTransactionDrilldownDialog() method
+  - Shows transaction header with type badge, date, status, reference
+  - Displays transaction lines grid with account, memo, tax code, debit/credit columns
+  - Shows totals row with line count and debit/credit totals
+  - Styled consistently with other drilldown dialogs
+- [x] Bank Register row click opens transaction dialog
+  - Replaced notification-only behavior with full dialog
+  - Clicking any row with a transaction ID opens the detail dialog
+  - Maintains cursor pointer styling for UX hint
+- [x] All 150 tests passing
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -934,6 +951,8 @@ Per specs, Release 1 must deliver:
 - UserSecurityLevelRepository can be injected directly into views for simple CRUD operations without needing a dedicated service
 - Bank Register report is separate from Cashflow report - Cashflow aggregates all bank accounts, Bank Register shows transaction-level detail per account with running balance
 - ReportsView tabs pattern: create tab layout method returning VerticalLayout, create load method, create display method, create update export buttons method
+- Transaction.Status enum (not TransactionStatus) - access as Transaction.Status.POSTED
+- TransactionLine.taxCode is a String not TaxCode object - display directly without .getCode()
 
 ## Technical Notes
 - Build: `./mvnw compile`

@@ -56,6 +56,7 @@ public class ReportsView extends VerticalLayout {
     private final DepartmentService departmentService;
     private final BudgetService budgetService;
     private final AccountService accountService;
+    private final TransactionService transactionService;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final SalesInvoiceRepository salesInvoiceRepository;
     private final SupplierBillRepository supplierBillRepository;
@@ -117,6 +118,7 @@ public class ReportsView extends VerticalLayout {
                        DepartmentService departmentService,
                        BudgetService budgetService,
                        AccountService accountService,
+                       TransactionService transactionService,
                        LedgerEntryRepository ledgerEntryRepository,
                        SalesInvoiceRepository salesInvoiceRepository,
                        SupplierBillRepository supplierBillRepository) {
@@ -127,6 +129,7 @@ public class ReportsView extends VerticalLayout {
         this.departmentService = departmentService;
         this.budgetService = budgetService;
         this.accountService = accountService;
+        this.transactionService = transactionService;
         this.ledgerEntryRepository = ledgerEntryRepository;
         this.salesInvoiceRepository = salesInvoiceRepository;
         this.supplierBillRepository = supplierBillRepository;
@@ -2027,6 +2030,124 @@ public class ReportsView extends VerticalLayout {
         dialog.open();
     }
 
+    /**
+     * Opens a dialog showing details of a specific transaction.
+     * Used for drilldown from Bank Register report.
+     */
+    private void openTransactionDrilldownDialog(Long transactionId) {
+        transactionService.findById(transactionId).ifPresentOrElse(transaction -> {
+            Dialog dialog = new Dialog();
+            dialog.setHeaderTitle("Transaction: " + transaction.getDescription());
+            dialog.setWidth("800px");
+            dialog.setHeight("500px");
+
+            VerticalLayout content = new VerticalLayout();
+            content.setSizeFull();
+            content.setPadding(false);
+
+            // Transaction header info
+            HorizontalLayout headerRow = new HorizontalLayout();
+            headerRow.setWidthFull();
+            headerRow.setSpacing(true);
+            headerRow.getStyle().set("padding", "8px")
+                .set("background-color", "var(--lumo-contrast-5pct)")
+                .set("border-radius", "4px");
+
+            Span typeLabel = new Span(transaction.getType().name());
+            typeLabel.getElement().getThemeList().add("badge");
+            if (transaction.getType() == Transaction.TransactionType.RECEIPT) {
+                typeLabel.getElement().getThemeList().add("success");
+            } else if (transaction.getType() == Transaction.TransactionType.PAYMENT) {
+                typeLabel.getElement().getThemeList().add("error");
+            }
+
+            Span dateLabel = new Span(transaction.getTransactionDate().format(DATE_FORMAT));
+            Span statusLabel = new Span(transaction.getStatus().name());
+            statusLabel.getElement().getThemeList().add("badge");
+            if (transaction.getStatus() == Transaction.Status.POSTED) {
+                statusLabel.getElement().getThemeList().add("success");
+            }
+
+            Span referenceLabel = new Span("Ref: " + (transaction.getReference() != null ? transaction.getReference() : "-"));
+            referenceLabel.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+            headerRow.add(typeLabel, dateLabel, statusLabel, referenceLabel);
+
+            // Transaction lines grid
+            Grid<TransactionLine> grid = new Grid<>();
+            grid.setSizeFull();
+            grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES, GridVariant.LUMO_COMPACT);
+
+            grid.addColumn(line -> line.getAccount().getCode())
+                .setHeader("Account")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+
+            grid.addColumn(line -> line.getAccount().getName())
+                .setHeader("Account Name")
+                .setFlexGrow(1);
+
+            grid.addColumn(line -> line.getMemo() != null ? line.getMemo() : "")
+                .setHeader("Memo")
+                .setFlexGrow(1);
+
+            grid.addColumn(line -> line.getTaxCode() != null ? line.getTaxCode() : "")
+                .setHeader("Tax")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+
+            grid.addColumn(line -> line.getDirection() == TransactionLine.Direction.DEBIT ? formatMoney(line.getAmount()) : "")
+                .setHeader("Debit")
+                .setAutoWidth(true)
+                .setTextAlign(com.vaadin.flow.component.grid.ColumnTextAlign.END);
+
+            grid.addColumn(line -> line.getDirection() == TransactionLine.Direction.CREDIT ? formatMoney(line.getAmount()) : "")
+                .setHeader("Credit")
+                .setAutoWidth(true)
+                .setTextAlign(com.vaadin.flow.component.grid.ColumnTextAlign.END);
+
+            grid.setItems(transaction.getLines());
+
+            // Calculate totals
+            BigDecimal totalDebits = transaction.getLines().stream()
+                .filter(line -> line.getDirection() == TransactionLine.Direction.DEBIT)
+                .map(TransactionLine::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal totalCredits = transaction.getLines().stream()
+                .filter(line -> line.getDirection() == TransactionLine.Direction.CREDIT)
+                .map(TransactionLine::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Totals row
+            HorizontalLayout totalsRow = new HorizontalLayout();
+            totalsRow.setWidthFull();
+            totalsRow.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
+            totalsRow.getStyle().set("font-weight", "bold")
+                .set("padding", "8px")
+                .set("border-top", "2px solid var(--lumo-contrast-20pct)");
+
+            Span lineCount = new Span(transaction.getLines().size() + " line(s)");
+            lineCount.getStyle().set("flex-grow", "1");
+
+            Span debitTotal = new Span("Debits: " + formatMoney(totalDebits));
+            Span creditTotal = new Span("Credits: " + formatMoney(totalCredits));
+
+            debitTotal.getStyle().set("margin-right", "16px");
+
+            totalsRow.add(lineCount, debitTotal, creditTotal);
+
+            content.add(headerRow, grid, totalsRow);
+
+            Button closeBtn = new Button("Close", e -> dialog.close());
+            dialog.add(content);
+            dialog.getFooter().add(closeBtn);
+            dialog.open();
+        }, () -> {
+            Notification.show("Transaction not found", 3000, Notification.Position.BOTTOM_START)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        });
+    }
+
     // ==================== BANK REGISTER TAB ====================
 
     /**
@@ -2207,8 +2328,7 @@ public class ReportsView extends VerticalLayout {
         grid.addItemClickListener(event -> {
             BankRegisterLine line = event.getItem();
             if (line.transactionId() != null) {
-                // Navigate to transaction or show dialog
-                Notification.show("Transaction ID: " + line.transactionId(), 2000, Notification.Position.BOTTOM_START);
+                openTransactionDrilldownDialog(line.transactionId());
             }
         });
         grid.getStyle().set("cursor", "pointer");
