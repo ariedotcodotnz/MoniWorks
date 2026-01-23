@@ -51,8 +51,8 @@ import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.security.PermitAll;
 
 /**
- * View for managing transactions (Payments, Receipts, Journals). Supports creating, viewing,
- * posting, and reversing transactions.
+ * View for managing transactions (Payments, Receipts, Journals, Transfers). Supports creating,
+ * viewing, posting, and reversing transactions.
  *
  * <p>Supports query parameters for keyboard shortcut navigation:
  *
@@ -60,6 +60,7 @@ import jakarta.annotation.security.PermitAll;
  *   <li>?type=PAYMENT&new=true - Opens new payment dialog
  *   <li>?type=RECEIPT&new=true - Opens new receipt dialog
  *   <li>?type=JOURNAL&new=true - Opens new journal dialog
+ *   <li>?type=TRANSFER&new=true - Opens new transfer dialog
  * </ul>
  */
 @Route(value = "transactions", layout = MainLayout.class)
@@ -308,6 +309,10 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     Button journalBtn = new Button("Journal", VaadinIcon.BOOK.create());
     journalBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.JOURNAL));
 
+    Button transferBtn = new Button("Transfer", VaadinIcon.EXCHANGE.create());
+    transferBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+    transferBtn.addClickListener(e -> openNewTransactionDialog(TransactionType.TRANSFER));
+
     Button refreshBtn = new Button(VaadinIcon.REFRESH.create());
     refreshBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
     refreshBtn.addClickListener(e -> loadTransactions());
@@ -319,7 +324,8 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
     }
     filters.setAlignItems(FlexComponent.Alignment.BASELINE);
 
-    HorizontalLayout buttons = new HorizontalLayout(paymentBtn, receiptBtn, journalBtn, refreshBtn);
+    HorizontalLayout buttons =
+        new HorizontalLayout(paymentBtn, receiptBtn, journalBtn, transferBtn, refreshBtn);
     buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
 
     HorizontalLayout left = new HorizontalLayout(title, filters);

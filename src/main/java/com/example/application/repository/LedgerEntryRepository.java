@@ -117,4 +117,48 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
       @Param("startDate") LocalDate startDate,
       @Param("endDate") LocalDate endDate,
       @Param("department") Department department);
+
+  // Bank reconciliation queries (per spec 05)
+
+  /** Find all unreconciled ledger entries for a bank account. */
+  @Query(
+      "SELECT le FROM LedgerEntry le WHERE le.account = :account "
+          + "AND le.reconciled = false "
+          + "ORDER BY le.entryDate, le.id")
+  List<LedgerEntry> findUnreconciledByAccount(@Param("account") Account account);
+
+  /** Find unreconciled ledger entries for a bank account within a date range. */
+  @Query(
+      "SELECT le FROM LedgerEntry le WHERE le.account = :account "
+          + "AND le.reconciled = false "
+          + "AND le.entryDate BETWEEN :startDate AND :endDate "
+          + "ORDER BY le.entryDate, le.id")
+  List<LedgerEntry> findUnreconciledByAccountAndDateRange(
+      @Param("account") Account account,
+      @Param("startDate") LocalDate startDate,
+      @Param("endDate") LocalDate endDate);
+
+  /** Count unreconciled entries for a bank account. */
+  @Query(
+      "SELECT COUNT(le) FROM LedgerEntry le WHERE le.account = :account "
+          + "AND le.reconciled = false")
+  long countUnreconciledByAccount(@Param("account") Account account);
+
+  /** Sum unreconciled debits for a bank account. */
+  @Query(
+      "SELECT COALESCE(SUM(le.amountDr), 0) FROM LedgerEntry le "
+          + "WHERE le.account = :account AND le.reconciled = false")
+  BigDecimal sumUnreconciledDebitsByAccount(@Param("account") Account account);
+
+  /** Sum unreconciled credits for a bank account. */
+  @Query(
+      "SELECT COALESCE(SUM(le.amountCr), 0) FROM LedgerEntry le "
+          + "WHERE le.account = :account AND le.reconciled = false")
+  BigDecimal sumUnreconciledCreditsByAccount(@Param("account") Account account);
+
+  /** Find reconciled entries linked to a specific bank feed item. */
+  @Query(
+      "SELECT le FROM LedgerEntry le WHERE le.reconciledBankFeedItem.id = :bankFeedItemId "
+          + "ORDER BY le.entryDate, le.id")
+  List<LedgerEntry> findByReconciledBankFeedItemId(@Param("bankFeedItemId") Long bankFeedItemId);
 }

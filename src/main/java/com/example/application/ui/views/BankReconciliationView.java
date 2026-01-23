@@ -498,13 +498,18 @@ public class BankReconciliationView extends VerticalLayout {
             transaction.addLine(allocLine);
 
             // Save and post
+            User currentUser = companyContextService.getCurrentUser();
             Transaction saved = transactionService.save(transaction);
-            postingService.postTransaction(saved, null);
+            postingService.postTransaction(saved, currentUser);
 
-            // Mark feed item as created
+            // Mark feed item as created with audit trail
             item.setMatchedTransaction(saved);
             item.setStatus(FeedItemStatus.CREATED);
-            bankImportService.matchItem(item, saved);
+            bankImportService.matchItem(
+                item,
+                saved,
+                com.example.application.domain.ReconciliationMatch.MatchType.MANUAL,
+                currentUser);
 
             Notification.show(
                     "Transaction created and posted", 3000, Notification.Position.BOTTOM_START)
@@ -610,7 +615,12 @@ public class BankReconciliationView extends VerticalLayout {
           Optional<Transaction> selected = candidateGrid.asSingleSelect().getOptionalValue();
           if (selected.isPresent()) {
             try {
-              bankImportService.matchItem(item, selected.get());
+              User currentUser = companyContextService.getCurrentUser();
+              bankImportService.matchItem(
+                  item,
+                  selected.get(),
+                  com.example.application.domain.ReconciliationMatch.MatchType.MANUAL,
+                  currentUser);
 
               Notification.show(
                       "Item matched successfully", 3000, Notification.Position.BOTTOM_START)

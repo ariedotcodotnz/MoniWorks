@@ -45,11 +45,12 @@
 - **Phase 37 KPI & Income Trend Charting COMPLETE** - Tag: 0.4.9
 - **Phase 38 Bank Reconciliation Status Report COMPLETE** - Tag: 0.5.0
 - **Phase 39 SMTP Email Sending COMPLETE** - Tag: 0.5.1
+- **Phase 40 Transfer Transactions & Reconciliation Audit Trail COMPLETE** - Tag: 0.5.2
 - All 152 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4)
-- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
+- Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
-- All repository interfaces created (41 repositories)
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql, V19__reconciliation_match.sql, V20__ledger_entry_reconciliation.sql
+- All repository interfaces created (42 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService, InvitationService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView, RolesView, CompanySettingsView
 - Security configuration with SecurityConfig and UserDetailsServiceImpl (using VaadinSecurityConfigurer API)
@@ -1101,6 +1102,39 @@ Per specs, Release 1 must deliver:
 - [x] All 152 tests passing (EmailServiceTest: 23)
 - [x] No forbidden markers
 
+### Phase 40: Transfer Transactions & Reconciliation Audit Trail (COMPLETE) - Tag: 0.5.2
+- [x] Transfer Transaction UI (spec 04)
+  - Added Transfer button to TransactionsView toolbar
+  - Uses EXCHANGE icon with LUMO_CONTRAST theme
+  - Works with existing transaction form dialog
+  - Supports Transfer type in type filter dropdown
+- [x] Transfer keyboard shortcut (spec 04)
+  - Added Alt+X shortcut for new Transfer transaction
+  - Updated keyboard shortcuts help dialog to include Transfer
+- [x] ReconciliationMatch entity (spec 05)
+  - Created ReconciliationMatch entity per spec 05 domain model
+  - Tracks bankFeedItemId, transactionId, matchType (AUTO/MANUAL)
+  - Includes audit fields: matchedBy, matchedAt, matchNotes
+  - Supports unmatching with audit trail (active flag, unmatchedBy, unmatchedAt)
+  - Created V19__reconciliation_match.sql migration
+  - Created ReconciliationMatchRepository with query methods
+- [x] BankImportService ReconciliationMatch integration (spec 05)
+  - Updated matchItem() to create ReconciliationMatch record
+  - Added overloaded methods for match type and user tracking
+  - Added unmatchItem() method with audit trail preservation
+  - Added findActiveMatch() and findMatchHistory() methods
+- [x] BankReconciliationView audit trail integration (spec 05)
+  - Updated match operations to pass current user and match type
+  - Both create transaction and match to existing now record audit trail
+- [x] LedgerEntry reconciliation status (spec 05)
+  - Added ReconciliationStatus enum (UNRECONCILED, RECONCILED, MANUAL_CLEARED)
+  - Added reconciliation tracking fields: isReconciled, reconciliationStatus, reconciledBankFeedItem, reconciledAt, reconciledBy
+  - Added markReconciled(), markManuallyCleared(), and unreconcile() methods
+  - Created V20__ledger_entry_reconciliation.sql migration
+  - Added repository queries for unreconciled entries by account
+- [x] All 152 tests passing
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1170,6 +1204,9 @@ Per specs, Release 1 must deliver:
 - JavaMailSender can be injected with @Autowired(required = false) to gracefully handle missing SMTP configuration
 - MimeMessage with MimeMultipart supports text/HTML body plus PDF attachments via ByteArrayDataSource and DataHandler
 - Spring Boot auto-configures JavaMailSender bean when spring.mail.* properties are set and spring-boot-starter-mail is on classpath
+- ReconciliationMatch entity provides audit trail for bank reconciliation - stores who matched what, when, and how (AUTO vs MANUAL); keeps inactive records for audit history
+- LedgerEntry reconciliation status is operational metadata (mutable) separate from immutable accounting data; use ReconciliationStatus enum
+- BankImportService.matchItem() has overloaded versions: (item, transaction) for legacy compatibility, (item, transaction, user) for manual with audit, (item, transaction, matchType, user) for full control
 
 ## Technical Notes
 - Build: `./mvnw compile`

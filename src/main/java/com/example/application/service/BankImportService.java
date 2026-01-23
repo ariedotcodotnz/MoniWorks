@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.application.domain.*;
 import com.example.application.domain.BankFeedItem.FeedItemStatus;
 import com.example.application.domain.BankStatementImport.SourceType;
+import com.example.application.domain.ReconciliationMatch.MatchType;
 import com.example.application.repository.*;
 
 /**
@@ -34,16 +35,19 @@ public class BankImportService {
   private final BankFeedItemRepository feedItemRepository;
   private final AccountRepository accountRepository;
   private final AllocationRuleRepository ruleRepository;
+  private final ReconciliationMatchRepository reconciliationMatchRepository;
 
   public BankImportService(
       BankStatementImportRepository importRepository,
       BankFeedItemRepository feedItemRepository,
       AccountRepository accountRepository,
-      AllocationRuleRepository ruleRepository) {
+      AllocationRuleRepository ruleRepository,
+      ReconciliationMatchRepository reconciliationMatchRepository) {
     this.importRepository = importRepository;
     this.feedItemRepository = feedItemRepository;
     this.accountRepository = accountRepository;
     this.ruleRepository = ruleRepository;
+    this.reconciliationMatchRepository = reconciliationMatchRepository;
   }
 
   /**
@@ -445,17 +449,100 @@ public class BankImportService {
     return importRepository.findByAccountOrderByImportedAtDesc(account);
   }
 
-  /** Marks a feed item as matched to a transaction. */
-  public void matchItem(BankFeedItem item, Transaction transaction) {
+  /**
+   * Marks a feed item as matched to a transaction. Creates a ReconciliationMatch record for audit
+   * trail per spec 05.
+   *
+   * @param item The bank feed item to match
+   * @param transaction The transaction to match to
+   * @param matchType Whether this was an AUTO or MANUAL match
+   * @param user The user performing the match (can be null for system matches)
+   */
+  public void matchItem(
+      BankFeedItem item, Transaction transaction, MatchType matchType, User user) {
+    // Update the BankFeedItem with the match
     item.setMatchedTransaction(transaction);
     item.setStatus(FeedItemStatus.MATCHED);
     feedItemRepository.save(item);
+
+    // Create ReconciliationMatch record for audit trail
+    Company company = item.getBankStatementImport().getCompany();
+    ReconciliationMatch match =
+        new ReconciliationMatch(company, item, transaction, matchType, user);
+    reconciliationMatchRepository.save(match);
+
+    log.info(
+        "Matched bank feed item {} to transaction {} ({} match by {})",
+        item.getId(),
+        transaction.getId(),
+        matchType,
+        user != null ? user.getEmail() : "system");
+  }
+
+  /**
+   * Marks a feed item as matched to a transaction (manual match). Creates a ReconciliationMatch
+   * record for audit trail per spec 05.
+   *
+   * @param item The bank feed item to match
+   * @param transaction The transaction to match to
+   * @param user The user performing the match
+   */
+  public void matchItem(BankFeedItem item, Transaction transaction, User user) {
+    matchItem(item, transaction, MatchType.MANUAL, user);
+  }
+
+  /**
+   * Marks a feed item as matched to a transaction (legacy method for backwards compatibility).
+   * Creates a ReconciliationMatch record with MANUAL match type.
+   */
+  public void matchItem(BankFeedItem item, Transaction transaction) {
+    matchItem(item, transaction, MatchType.MANUAL, null);
+  }
+
+  /**
+   * Unmatches a previously matched bank feed item. The ReconciliationMatch record is kept for audit
+   * purposes but marked as inactive.
+   *
+   * @param item The bank feed item to unmatch
+   * @param user The user performing the unmatch
+   */
+  public void unmatchItem(BankFeedItem item, User user) {
+    // Find and deactivate the active reconciliation match
+    reconciliationMatchRepository
+        .findByBankFeedItemAndActiveTrue(item)
+        .ifPresent(
+            match -> {
+              match.unmatch(user);
+              reconciliationMatchRepository.save(match);
+            });
+
+    // Reset the bank feed item status
+    item.setMatchedTransaction(null);
+    item.setStatus(FeedItemStatus.NEW);
+    feedItemRepository.save(item);
+
+    log.info(
+        "Unmatched bank feed item {} by {}",
+        item.getId(),
+        user != null ? user.getEmail() : "system");
   }
 
   /** Marks a feed item as ignored. */
   public void ignoreItem(BankFeedItem item) {
     item.setStatus(FeedItemStatus.IGNORED);
     feedItemRepository.save(item);
+  }
+
+  /** Finds the active reconciliation match for a bank feed item. */
+  @Transactional(readOnly = true)
+  public Optional<ReconciliationMatch> findActiveMatch(BankFeedItem item) {
+    return reconciliationMatchRepository.findByBankFeedItemAndActiveTrue(item);
+  }
+
+  /** Finds all reconciliation matches (including inactive) for audit history. */
+  @Transactional(readOnly = true)
+  public List<ReconciliationMatch> findMatchHistory(BankFeedItem item) {
+    return reconciliationMatchRepository.findByBankFeedItemOrderByMatchedAtDesc(item);
   }
 
   /** Finds allocation rules that match the given description. */

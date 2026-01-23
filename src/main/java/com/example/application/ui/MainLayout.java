@@ -137,6 +137,13 @@ public class MainLayout extends AppLayout {
     Shortcuts.addShortcutListener(
         this, () -> UI.getCurrent().navigate("bills?new=true"), Key.KEY_B, KeyModifier.ALT);
 
+    // Alt+X - Navigate to Transactions with Transfer type pre-selected
+    Shortcuts.addShortcutListener(
+        this,
+        () -> UI.getCurrent().navigate("transactions?type=TRANSFER&new=true"),
+        Key.KEY_X,
+        KeyModifier.ALT);
+
     // ? - Show keyboard shortcuts help (Shift+/ = ?)
     Shortcuts.addShortcutListener(
             this, this::showKeyboardShortcutsHelp, Key.SLASH, KeyModifier.SHIFT)
@@ -175,6 +182,7 @@ public class MainLayout extends AppLayout {
           Alt+P  - New Payment
           Alt+R  - New Receipt
           Alt+J  - New Journal
+          Alt+X  - New Transfer
           Alt+I  - New Invoice
           Alt+B  - New Bill
 
