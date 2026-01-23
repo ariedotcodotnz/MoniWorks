@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -272,6 +273,7 @@ public class BankReconciliationView extends VerticalLayout {
     boolean isMatched =
         item.getStatus() == FeedItemStatus.MATCHED
             || item.getStatus() == FeedItemStatus.CREATED
+            || item.getStatus() == FeedItemStatus.SPLIT
             || item.getMatchedTransaction() != null;
 
     if (isMatched) {
@@ -311,6 +313,11 @@ public class BankReconciliationView extends VerticalLayout {
       createTransactionBtn.addClickListener(
           e -> openCreateTransactionDialog(item, suggestedRule.orElse(null)));
 
+      Button splitBtn = new Button("Split Across Accounts", VaadinIcon.SPLIT.create());
+      splitBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+      splitBtn.setWidthFull();
+      splitBtn.addClickListener(e -> openSplitTransactionDialog(item));
+
       Button matchBtn = new Button("Match to Existing", VaadinIcon.LINK.create());
       matchBtn.setWidthFull();
       matchBtn.addClickListener(e -> openMatchDialog(item));
@@ -320,7 +327,7 @@ public class BankReconciliationView extends VerticalLayout {
       ignoreBtn.setWidthFull();
       ignoreBtn.addClickListener(e -> ignoreItem(item));
 
-      actionsLayout.add(createTransactionBtn, matchBtn, ignoreBtn);
+      actionsLayout.add(createTransactionBtn, splitBtn, matchBtn, ignoreBtn);
     }
 
     detailPanel.add(detailTitle, infoSection, actionsTitle, actionsLayout);
@@ -734,5 +741,323 @@ public class BankReconciliationView extends VerticalLayout {
       Notification.show("Error: " + e.getMessage(), 3000, Notification.Position.MIDDLE)
           .addThemeVariants(NotificationVariant.LUMO_ERROR);
     }
+  }
+
+  /**
+   * Opens a dialog to split a bank feed item across multiple accounts. This allows users to
+   * allocate a single bank transaction to multiple expense/income accounts, which is useful for
+   * transactions like utility bills that need to be split between cost centers.
+   *
+   * <p>Per spec 05: "Actions: match, split, create transaction, ignore"
+   */
+  private void openSplitTransactionDialog(BankFeedItem item) {
+    Dialog dialog = new Dialog();
+    dialog.setHeaderTitle("Split Transaction Across Accounts");
+    dialog.setWidth("800px");
+    dialog.setHeight("600px");
+
+    Company company = companyContextService.getCurrentCompany();
+    int securityLevel = companyContextService.getCurrentSecurityLevel();
+    List<Account> accounts =
+        accountService.findActiveByCompanyWithSecurityLevel(company, securityLevel);
+    List<TaxCode> taxCodes = taxCodeService.findActiveByCompany(company);
+
+    // Transaction header info
+    boolean isReceipt = item.isInflow();
+    TransactionType type = isReceipt ? TransactionType.RECEIPT : TransactionType.PAYMENT;
+    BigDecimal totalAmount = item.getAmount().abs();
+
+    FormLayout headerForm = new FormLayout();
+
+    Span typeSpan = new Span("Type: " + type.name());
+    typeSpan.getStyle().set("font-weight", "bold");
+
+    DatePicker datePicker = new DatePicker("Date");
+    datePicker.setValue(item.getPostedDate());
+    datePicker.setRequired(true);
+
+    TextField descriptionField = new TextField("Description");
+    descriptionField.setValue(item.getDescription() != null ? item.getDescription() : "");
+    descriptionField.setWidthFull();
+
+    Span totalAmountSpan = new Span("Total Amount: $" + totalAmount.setScale(2).toPlainString());
+    totalAmountSpan.getStyle().set("font-weight", "bold").set("font-size", "1.1em");
+
+    headerForm.add(typeSpan, datePicker, descriptionField, totalAmountSpan);
+    headerForm.setColspan(descriptionField, 2);
+
+    // Split allocations grid
+    H4 allocationsTitle = new H4("Allocations");
+
+    // Use a simple data holder for allocation rows
+    List<SplitAllocationRow> allocationRows = new ArrayList<>();
+
+    Grid<SplitAllocationRow> allocationsGrid = new Grid<>();
+    allocationsGrid.setHeight("200px");
+    allocationsGrid.addThemeVariants(GridVariant.LUMO_COMPACT, GridVariant.LUMO_ROW_STRIPES);
+
+    allocationsGrid
+        .addColumn(
+            row -> row.account != null ? row.account.getCode() + " - " + row.account.getName() : "")
+        .setHeader("Account")
+        .setFlexGrow(2);
+
+    allocationsGrid
+        .addColumn(row -> row.amount != null ? "$" + row.amount.setScale(2).toPlainString() : "")
+        .setHeader("Amount")
+        .setAutoWidth(true);
+
+    allocationsGrid
+        .addColumn(row -> row.taxCode != null ? row.taxCode : "")
+        .setHeader("Tax Code")
+        .setAutoWidth(true);
+
+    allocationsGrid
+        .addColumn(row -> row.memo != null ? row.memo : "")
+        .setHeader("Memo")
+        .setFlexGrow(1);
+
+    allocationsGrid
+        .addComponentColumn(
+            row -> {
+              Button removeBtn = new Button(VaadinIcon.TRASH.create());
+              removeBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
+              removeBtn.addClickListener(
+                  e -> {
+                    allocationRows.remove(row);
+                    allocationsGrid.setItems(allocationRows);
+                    updateRemainingAmount(allocationRows, totalAmount, dialog);
+                  });
+              return removeBtn;
+            })
+        .setHeader("")
+        .setAutoWidth(true);
+
+    // Input form for adding new allocations
+    HorizontalLayout addAllocationForm = new HorizontalLayout();
+    addAllocationForm.setWidthFull();
+    addAllocationForm.setAlignItems(FlexComponent.Alignment.END);
+
+    ComboBox<Account> accountCombo = new ComboBox<>("Account");
+    accountCombo.setItems(accounts);
+    accountCombo.setItemLabelGenerator(a -> a.getCode() + " - " + a.getName());
+    accountCombo.setWidth("250px");
+
+    BigDecimalField amountField = new BigDecimalField("Amount");
+    amountField.setWidth("120px");
+
+    ComboBox<TaxCode> taxCodeCombo = new ComboBox<>("Tax Code");
+    taxCodeCombo.setItems(taxCodes);
+    taxCodeCombo.setItemLabelGenerator(TaxCode::getCode);
+    taxCodeCombo.setClearButtonVisible(true);
+    taxCodeCombo.setWidth("100px");
+
+    TextField memoField = new TextField("Memo");
+    memoField.setWidth("150px");
+
+    Button addBtn = new Button("Add", VaadinIcon.PLUS.create());
+    addBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    addBtn.addClickListener(
+        e -> {
+          if (accountCombo.isEmpty() || amountField.isEmpty() || amountField.getValue() == null) {
+            Notification.show("Account and Amount are required", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          BigDecimal amount = amountField.getValue();
+          if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            Notification.show("Amount must be positive", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          SplitAllocationRow row = new SplitAllocationRow();
+          row.account = accountCombo.getValue();
+          row.amount = amount;
+          row.taxCode = taxCodeCombo.getValue() != null ? taxCodeCombo.getValue().getCode() : null;
+          row.memo = memoField.getValue();
+
+          allocationRows.add(row);
+          allocationsGrid.setItems(allocationRows);
+          updateRemainingAmount(allocationRows, totalAmount, dialog);
+
+          // Clear inputs for next entry
+          accountCombo.clear();
+          amountField.clear();
+          taxCodeCombo.clear();
+          memoField.clear();
+          accountCombo.focus();
+        });
+
+    addAllocationForm.add(accountCombo, amountField, taxCodeCombo, memoField, addBtn);
+
+    // Remaining amount indicator
+    Span remainingAmountSpan = new Span();
+    remainingAmountSpan.setId("remaining-amount");
+    updateRemainingAmountSpan(remainingAmountSpan, totalAmount, BigDecimal.ZERO);
+
+    // Quick split button for even distribution
+    Button evenSplitBtn = new Button("Split Remaining Evenly");
+    evenSplitBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+    evenSplitBtn.addClickListener(
+        e -> {
+          if (accountCombo.isEmpty()) {
+            Notification.show("Select an account first", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_WARNING);
+            return;
+          }
+
+          BigDecimal allocated =
+              allocationRows.stream()
+                  .map(row -> row.amount)
+                  .reduce(BigDecimal.ZERO, BigDecimal::add);
+          BigDecimal remaining = totalAmount.subtract(allocated);
+
+          if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            amountField.setValue(remaining);
+          }
+        });
+
+    HorizontalLayout remainingLayout = new HorizontalLayout(remainingAmountSpan, evenSplitBtn);
+    remainingLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+    remainingLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
+    remainingLayout.setWidthFull();
+
+    // Create button
+    Button createBtn = new Button("Create & Post Split Transaction");
+    createBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    createBtn.addClickListener(
+        e -> {
+          if (allocationRows.isEmpty()) {
+            Notification.show("Add at least one allocation", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          BigDecimal allocated =
+              allocationRows.stream()
+                  .map(row -> row.amount)
+                  .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+          if (allocated.compareTo(totalAmount) != 0) {
+            Notification.show(
+                    String.format(
+                        "Allocations ($%s) must equal total ($%s)",
+                        allocated.setScale(2), totalAmount.setScale(2)),
+                    3000,
+                    Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          try {
+            // Convert rows to SplitAllocation records
+            List<BankImportService.SplitAllocation> allocations =
+                allocationRows.stream()
+                    .map(
+                        row ->
+                            new BankImportService.SplitAllocation(
+                                row.account, row.amount, row.taxCode, row.memo))
+                    .toList();
+
+            // Create the split transaction
+            User currentUser = companyContextService.getCurrentUser();
+            Transaction transaction =
+                bankImportService.splitItem(
+                    item,
+                    selectedBankAccount,
+                    allocations,
+                    datePicker.getValue(),
+                    descriptionField.getValue(),
+                    currentUser);
+
+            // Save and post the transaction
+            Transaction saved = transactionService.save(transaction);
+            postingService.postTransaction(saved, currentUser);
+
+            // Update the bank feed item reference to the saved transaction
+            item.setMatchedTransaction(saved);
+
+            // Reconcile the ledger entries
+            bankImportService.reconcileSplitTransaction(
+                item, saved, selectedBankAccount, currentUser);
+
+            Notification.show(
+                    "Split transaction created with " + allocations.size() + " allocations",
+                    3000,
+                    Notification.Position.BOTTOM_START)
+                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+            dialog.close();
+            loadFeedItems();
+            showEmptyDetailPanel();
+
+          } catch (Exception ex) {
+            Notification.show("Error: " + ex.getMessage(), 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+          }
+        });
+
+    Button cancelBtn = new Button("Cancel", e -> dialog.close());
+
+    VerticalLayout content =
+        new VerticalLayout(
+            headerForm,
+            new Hr(),
+            allocationsTitle,
+            allocationsGrid,
+            addAllocationForm,
+            remainingLayout);
+    content.setSizeFull();
+    content.setPadding(false);
+    content.setSpacing(true);
+
+    dialog.add(content);
+    dialog.getFooter().add(cancelBtn, createBtn);
+    dialog.open();
+  }
+
+  /** Helper class to hold split allocation row data. */
+  private static class SplitAllocationRow {
+    Account account;
+    BigDecimal amount;
+    String taxCode;
+    String memo;
+  }
+
+  private void updateRemainingAmount(
+      List<SplitAllocationRow> rows, BigDecimal total, Dialog dialog) {
+    BigDecimal allocated =
+        rows.stream().map(row -> row.amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    dialog
+        .getElement()
+        .executeJs(
+            "const span = document.getElementById('remaining-amount'); "
+                + "if (span) { span.textContent = arguments[0]; "
+                + "span.style.color = arguments[1]; }",
+            formatRemainingText(total, allocated),
+            allocated.compareTo(total) == 0
+                ? "var(--lumo-success-text-color)"
+                : "var(--lumo-primary-text-color)");
+  }
+
+  private void updateRemainingAmountSpan(Span span, BigDecimal total, BigDecimal allocated) {
+    span.setText(formatRemainingText(total, allocated));
+    if (allocated.compareTo(total) == 0) {
+      span.getStyle().set("color", "var(--lumo-success-text-color)");
+    } else {
+      span.getStyle().set("color", "var(--lumo-primary-text-color)");
+    }
+  }
+
+  private String formatRemainingText(BigDecimal total, BigDecimal allocated) {
+    BigDecimal remaining = total.subtract(allocated);
+    return String.format(
+        "Allocated: $%s / $%s (Remaining: $%s)",
+        allocated.setScale(2).toPlainString(),
+        total.setScale(2).toPlainString(),
+        remaining.setScale(2).toPlainString());
   }
 }

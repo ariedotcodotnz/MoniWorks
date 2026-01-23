@@ -1023,8 +1023,7 @@ public class SalesInvoicesView extends VerticalLayout implements BeforeEnterObse
             String reason = reasonField.getValue();
             User currentUser = companyContextService.getCurrentUser();
             SalesInvoice voided =
-                invoiceService.voidInvoice(
-                    invoice, currentUser, reason.isBlank() ? null : reason);
+                invoiceService.voidInvoice(invoice, currentUser, reason.isBlank() ? null : reason);
 
             Notification.show("Invoice voided", 3000, Notification.Position.BOTTOM_START)
                 .addThemeVariants(NotificationVariant.LUMO_SUCCESS);

@@ -25,6 +25,7 @@ public class BankFeedItem {
     NEW, // Unprocessed item
     MATCHED, // Matched to existing transaction
     CREATED, // New transaction created from this item
+    SPLIT, // Split across multiple accounts in a single transaction
     IGNORED // Manually ignored by user
   }
 

@@ -48,8 +48,8 @@
 - **Phase 40 Transfer Transactions & Reconciliation Audit Trail COMPLETE** - Tag: 0.5.2
 - **Phase 41 Complete Bank Reconciliation Integration COMPLETE** - Tag: 0.5.3
 - **Phase 42 Credit Note Voiding COMPLETE** - Tag: 0.5.4
-- **Phase 43 Overpayment Support COMPLETE** - Tag: 0.5.5
-- All 184 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 14, PayableAllocationServiceTest: 14)
+- **Phase 44 Split Transaction for Bank Reconciliation COMPLETE** - Tag: 0.5.6
+- All 195 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql, V19__reconciliation_match.sql, V20__ledger_entry_reconciliation.sql
@@ -1193,6 +1193,34 @@ Per specs, Release 1 must deliver:
 - [x] All 184 tests passing
 - [x] No forbidden markers
 
+### Phase 44: Split Transaction for Bank Reconciliation (COMPLETE) - Tag: 0.5.6
+- [x] Split transaction action for bank reconciliation (spec 05)
+  - Per spec 05 UX requirements: "Actions: match, split, create transaction, ignore"
+  - Added SPLIT status to FeedItemStatus enum in BankFeedItem entity
+  - Created SplitAllocation record in BankImportService for holding allocation data
+  - Added splitItem() method to BankImportService for creating split transactions
+  - Added reconcileSplitTransaction() method for marking ledger entries as reconciled
+  - Validates total allocations must equal bank feed item amount
+- [x] Split transaction UI in BankReconciliationView
+  - Added "Split Across Accounts" button for NEW feed items
+  - Dialog allows adding multiple account allocations with amounts and tax codes
+  - Real-time display of allocated vs remaining amounts
+  - "Split Remaining Evenly" helper button for quick allocation
+  - Creates single transaction with bank line plus multiple allocation lines
+  - Posts transaction and reconciles ledger entries automatically
+- [x] BankImportServiceTest with 13 new tests covering:
+  - Split payment with two allocations creates balanced transaction
+  - Split receipt with two allocations uses correct debit/credit directions
+  - Allocations not matching total throws exception
+  - Empty or null allocations throws exception
+  - Single allocation works correctly
+  - Tax codes are preserved on allocation lines
+  - Reconciliation match created with notes
+  - SplitAllocation validation (null account, null amount, zero/negative amounts)
+  - Reconcile split transaction marks only bank account entries
+- [x] All 195 tests passing (BankImportServiceTest: 13)
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1267,6 +1295,7 @@ Per specs, Release 1 must deliver:
 - BankImportService.matchItem() has overloaded versions: (item, transaction) for legacy compatibility, (item, transaction, user) for manual with audit, (item, transaction, matchType, user) for full control
 - Account.setBankAccount(boolean) not setIsBankAccount(); Transaction.setTransactionDate(LocalDate) not setDate()
 - Overpayment handling: ReceivableAllocationService and PayableAllocationService allow allocations exceeding invoice/bill balance - creates negative balance (customer/supplier credit)
+- Split transaction pattern: Use Java records for validated DTOs (SplitAllocation), with Objects.requireNonNull and validation in compact constructor; BankFeedItem.SPLIT status is separate from MATCHED/CREATED to distinguish split allocations
 
 ## Technical Notes
 - Build: `./mvnw compile`

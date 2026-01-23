@@ -77,9 +77,11 @@ class ReceivableAllocationServiceTest {
     receipt.setTransactionDate(LocalDate.now());
 
     // Add a line for $500 credit to bank (receipt)
-    TransactionLine bankLine = new TransactionLine(bankAccount, BigDecimal.valueOf(500), TransactionLine.Direction.DEBIT);
+    TransactionLine bankLine =
+        new TransactionLine(bankAccount, BigDecimal.valueOf(500), TransactionLine.Direction.DEBIT);
     receipt.addLine(bankLine);
-    TransactionLine arLine = new TransactionLine(arAccount, BigDecimal.valueOf(500), TransactionLine.Direction.CREDIT);
+    TransactionLine arLine =
+        new TransactionLine(arAccount, BigDecimal.valueOf(500), TransactionLine.Direction.CREDIT);
     receipt.addLine(arLine);
 
     // Create an issued invoice for $300
@@ -101,11 +103,12 @@ class ReceivableAllocationServiceTest {
     when(allocationRepository.sumByReceipt(receipt)).thenReturn(BigDecimal.ZERO);
     when(allocationRepository.sumByInvoice(invoice)).thenReturn(BigDecimal.valueOf(200));
     when(allocationRepository.save(any(ReceivableAllocation.class)))
-        .thenAnswer(invocation -> {
-          ReceivableAllocation alloc = invocation.getArgument(0);
-          alloc.setId(1L);
-          return alloc;
-        });
+        .thenAnswer(
+            invocation -> {
+              ReceivableAllocation alloc = invocation.getArgument(0);
+              alloc.setId(1L);
+              return alloc;
+            });
 
     // When
     ReceivableAllocation allocation =
@@ -124,11 +127,12 @@ class ReceivableAllocationServiceTest {
     when(allocationRepository.sumByReceipt(receipt)).thenReturn(BigDecimal.ZERO);
     when(allocationRepository.sumByInvoice(invoice)).thenReturn(BigDecimal.valueOf(400));
     when(allocationRepository.save(any(ReceivableAllocation.class)))
-        .thenAnswer(invocation -> {
-          ReceivableAllocation alloc = invocation.getArgument(0);
-          alloc.setId(1L);
-          return alloc;
-        });
+        .thenAnswer(
+            invocation -> {
+              ReceivableAllocation alloc = invocation.getArgument(0);
+              alloc.setId(1L);
+              return alloc;
+            });
 
     // When - allocate $400 to a $300 invoice (overpayment of $100)
     ReceivableAllocation allocation =
@@ -150,11 +154,12 @@ class ReceivableAllocationServiceTest {
     when(allocationRepository.sumByReceipt(receipt)).thenReturn(BigDecimal.ZERO);
     when(allocationRepository.sumByInvoice(invoice)).thenReturn(BigDecimal.valueOf(300));
     when(allocationRepository.save(any(ReceivableAllocation.class)))
-        .thenAnswer(invocation -> {
-          ReceivableAllocation alloc = invocation.getArgument(0);
-          alloc.setId(1L);
-          return alloc;
-        });
+        .thenAnswer(
+            invocation -> {
+              ReceivableAllocation alloc = invocation.getArgument(0);
+              alloc.setId(1L);
+              return alloc;
+            });
 
     // When
     ReceivableAllocation allocation =
@@ -284,8 +289,10 @@ class ReceivableAllocationServiceTest {
   @Test
   void suggestAllocations_MultipleInvoices_OldestFirst() {
     // Given - multiple invoices sorted by due date
-    SalesInvoice invoice1 = createInvoice(1L, "INV-001", BigDecimal.valueOf(200), LocalDate.now().minusDays(30));
-    SalesInvoice invoice2 = createInvoice(2L, "INV-002", BigDecimal.valueOf(300), LocalDate.now().minusDays(10));
+    SalesInvoice invoice1 =
+        createInvoice(1L, "INV-001", BigDecimal.valueOf(200), LocalDate.now().minusDays(30));
+    SalesInvoice invoice2 =
+        createInvoice(2L, "INV-002", BigDecimal.valueOf(300), LocalDate.now().minusDays(10));
 
     List<SalesInvoice> invoices = new ArrayList<>();
     invoices.add(invoice2); // Add in wrong order to verify sorting

@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -591,5 +592,142 @@ public class BankImportService {
     }
 
     return Optional.empty();
+  }
+
+  /**
+   * Represents a single allocation line for split transactions. Used when splitting a bank feed
+   * item across multiple accounts.
+   *
+   * @param account The account to allocate to
+   * @param amount The amount to allocate (positive value)
+   * @param taxCode Optional tax code for this allocation
+   * @param memo Optional memo/description for this line
+   */
+  public record SplitAllocation(Account account, BigDecimal amount, String taxCode, String memo) {
+    public SplitAllocation {
+      Objects.requireNonNull(account, "Account cannot be null");
+      Objects.requireNonNull(amount, "Amount cannot be null");
+      if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+        throw new IllegalArgumentException("Amount must be positive");
+      }
+    }
+  }
+
+  /**
+   * Splits a bank feed item across multiple accounts by creating a single transaction with multiple
+   * allocation lines. The total of all allocations must equal the bank feed item amount.
+   *
+   * <p>Per spec 05 bank reconciliation requirements: "Actions: match, split, create transaction,
+   * ignore"
+   *
+   * @param item The bank feed item to split
+   * @param bankAccount The bank account (for the bank side of the transaction)
+   * @param allocations List of account allocations (must total to item amount)
+   * @param transactionDate The date for the transaction
+   * @param description Overall transaction description
+   * @param user The user performing the split
+   * @return The created and posted transaction
+   * @throws IllegalArgumentException if allocations don't balance to item amount
+   */
+  public Transaction splitItem(
+      BankFeedItem item,
+      Account bankAccount,
+      List<SplitAllocation> allocations,
+      LocalDate transactionDate,
+      String description,
+      User user) {
+
+    if (allocations == null || allocations.isEmpty()) {
+      throw new IllegalArgumentException("At least one allocation is required");
+    }
+
+    // Validate total allocations match the bank feed item amount
+    BigDecimal totalAllocated =
+        allocations.stream().map(SplitAllocation::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    BigDecimal itemAmount = item.getAmount().abs();
+    if (totalAllocated.compareTo(itemAmount) != 0) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Total allocations ($%s) must equal bank item amount ($%s)",
+              totalAllocated.setScale(2), itemAmount.setScale(2)));
+    }
+
+    Company company = item.getBankStatementImport().getCompany();
+    boolean isReceipt = item.isInflow();
+
+    // Create the transaction
+    Transaction.TransactionType type =
+        isReceipt ? Transaction.TransactionType.RECEIPT : Transaction.TransactionType.PAYMENT;
+    Transaction transaction = new Transaction(company, type, transactionDate);
+    transaction.setDescription(description != null ? description : item.getDescription());
+
+    // Add the bank account line (full amount)
+    TransactionLine.Direction bankDirection =
+        isReceipt ? TransactionLine.Direction.DEBIT : TransactionLine.Direction.CREDIT;
+    TransactionLine bankLine = new TransactionLine(bankAccount, itemAmount, bankDirection);
+    bankLine.setMemo("Bank: " + item.getDescription());
+    transaction.addLine(bankLine);
+
+    // Add allocation lines (opposite direction)
+    TransactionLine.Direction allocDirection =
+        isReceipt ? TransactionLine.Direction.CREDIT : TransactionLine.Direction.DEBIT;
+    for (SplitAllocation allocation : allocations) {
+      TransactionLine allocLine =
+          new TransactionLine(allocation.account(), allocation.amount(), allocDirection);
+      if (allocation.taxCode() != null) {
+        allocLine.setTaxCode(allocation.taxCode());
+      }
+      allocLine.setMemo(allocation.memo() != null ? allocation.memo() : item.getDescription());
+      transaction.addLine(allocLine);
+    }
+
+    // Mark the bank feed item as split
+    item.setMatchedTransaction(transaction);
+    item.setStatus(FeedItemStatus.SPLIT);
+    feedItemRepository.save(item);
+
+    // Create reconciliation match record for audit trail
+    ReconciliationMatch match =
+        new ReconciliationMatch(company, item, transaction, MatchType.MANUAL, user);
+    match.setMatchNotes("Split across " + allocations.size() + " accounts");
+    reconciliationMatchRepository.save(match);
+
+    // Mark ledger entries as reconciled (will be done after posting by caller)
+    log.info(
+        "Split bank feed item {} into {} allocations (total: ${}) by {}",
+        item.getId(),
+        allocations.size(),
+        totalAllocated.setScale(2),
+        user != null ? user.getEmail() : "system");
+
+    return transaction;
+  }
+
+  /**
+   * Marks ledger entries for a transaction as reconciled against a bank feed item. Should be called
+   * after posting a split transaction.
+   *
+   * @param item The bank feed item
+   * @param transaction The posted transaction
+   * @param bankAccount The bank account to match entries for
+   * @param user The user performing the reconciliation
+   */
+  public void reconcileSplitTransaction(
+      BankFeedItem item, Transaction transaction, Account bankAccount, User user) {
+    List<LedgerEntry> ledgerEntries = ledgerEntryRepository.findByTransaction(transaction);
+    int reconciledCount = 0;
+    for (LedgerEntry entry : ledgerEntries) {
+      if (entry.getAccount().getId().equals(bankAccount.getId())) {
+        entry.markReconciled(item, user);
+        ledgerEntryRepository.save(entry);
+        reconciledCount++;
+      }
+    }
+    log.info(
+        "Reconciled {} ledger entries for split transaction {} against bank feed item {}",
+        reconciledCount,
+        transaction.getId(),
+        item.getId());
   }
 }

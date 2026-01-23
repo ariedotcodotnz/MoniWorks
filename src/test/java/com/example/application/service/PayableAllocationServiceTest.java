@@ -77,9 +77,11 @@ class PayableAllocationServiceTest {
     payment.setTransactionDate(LocalDate.now());
 
     // Add a line for $500 debit to bank (payment out)
-    TransactionLine bankLine = new TransactionLine(bankAccount, BigDecimal.valueOf(500), TransactionLine.Direction.CREDIT);
+    TransactionLine bankLine =
+        new TransactionLine(bankAccount, BigDecimal.valueOf(500), TransactionLine.Direction.CREDIT);
     payment.addLine(bankLine);
-    TransactionLine apLine = new TransactionLine(apAccount, BigDecimal.valueOf(500), TransactionLine.Direction.DEBIT);
+    TransactionLine apLine =
+        new TransactionLine(apAccount, BigDecimal.valueOf(500), TransactionLine.Direction.DEBIT);
     payment.addLine(apLine);
 
     // Create a posted bill for $300
@@ -101,11 +103,12 @@ class PayableAllocationServiceTest {
     when(allocationRepository.sumByPayment(payment)).thenReturn(BigDecimal.ZERO);
     when(allocationRepository.sumByBill(bill)).thenReturn(BigDecimal.valueOf(200));
     when(allocationRepository.save(any(PayableAllocation.class)))
-        .thenAnswer(invocation -> {
-          PayableAllocation alloc = invocation.getArgument(0);
-          alloc.setId(1L);
-          return alloc;
-        });
+        .thenAnswer(
+            invocation -> {
+              PayableAllocation alloc = invocation.getArgument(0);
+              alloc.setId(1L);
+              return alloc;
+            });
 
     // When
     PayableAllocation allocation =
@@ -124,11 +127,12 @@ class PayableAllocationServiceTest {
     when(allocationRepository.sumByPayment(payment)).thenReturn(BigDecimal.ZERO);
     when(allocationRepository.sumByBill(bill)).thenReturn(BigDecimal.valueOf(400));
     when(allocationRepository.save(any(PayableAllocation.class)))
-        .thenAnswer(invocation -> {
-          PayableAllocation alloc = invocation.getArgument(0);
-          alloc.setId(1L);
-          return alloc;
-        });
+        .thenAnswer(
+            invocation -> {
+              PayableAllocation alloc = invocation.getArgument(0);
+              alloc.setId(1L);
+              return alloc;
+            });
 
     // When - allocate $400 to a $300 bill (overpayment of $100)
     PayableAllocation allocation =
@@ -150,11 +154,12 @@ class PayableAllocationServiceTest {
     when(allocationRepository.sumByPayment(payment)).thenReturn(BigDecimal.ZERO);
     when(allocationRepository.sumByBill(bill)).thenReturn(BigDecimal.valueOf(300));
     when(allocationRepository.save(any(PayableAllocation.class)))
-        .thenAnswer(invocation -> {
-          PayableAllocation alloc = invocation.getArgument(0);
-          alloc.setId(1L);
-          return alloc;
-        });
+        .thenAnswer(
+            invocation -> {
+              PayableAllocation alloc = invocation.getArgument(0);
+              alloc.setId(1L);
+              return alloc;
+            });
 
     // When
     PayableAllocation allocation =
@@ -284,8 +289,10 @@ class PayableAllocationServiceTest {
   @Test
   void suggestAllocations_MultipleBills_OldestFirst() {
     // Given - multiple bills sorted by due date
-    SupplierBill bill1 = createBill(1L, "BILL-001", BigDecimal.valueOf(200), LocalDate.now().minusDays(30));
-    SupplierBill bill2 = createBill(2L, "BILL-002", BigDecimal.valueOf(300), LocalDate.now().minusDays(10));
+    SupplierBill bill1 =
+        createBill(1L, "BILL-001", BigDecimal.valueOf(200), LocalDate.now().minusDays(30));
+    SupplierBill bill2 =
+        createBill(2L, "BILL-002", BigDecimal.valueOf(300), LocalDate.now().minusDays(10));
 
     List<SupplierBill> bills = new ArrayList<>();
     bills.add(bill2); // Add in wrong order to verify sorting
