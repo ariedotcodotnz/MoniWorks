@@ -7,14 +7,21 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import com.example.application.domain.Account;
 import com.example.application.domain.Company;
 import com.example.application.domain.RecurrenceExecutionLog;
 import com.example.application.domain.SalesInvoice;
+import com.example.application.domain.SavedView;
 import com.example.application.domain.SupplierBill;
+import com.example.application.domain.User;
 import com.example.application.repository.AccountRepository;
 import com.example.application.repository.LedgerEntryRepository;
 import com.example.application.repository.RecurrenceExecutionLogRepository;
@@ -23,13 +30,23 @@ import com.example.application.repository.SupplierBillRepository;
 import com.example.application.repository.TaxLineRepository;
 import com.example.application.service.CompanyContextService;
 import com.example.application.service.ReportingService;
+import com.example.application.service.SavedViewService;
 import com.example.application.ui.MainLayout;
 import com.example.application.ui.components.SparklineChart;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -56,9 +73,39 @@ public class DashboardView extends VerticalLayout {
   private final SalesInvoiceRepository salesInvoiceRepository;
   private final SupplierBillRepository supplierBillRepository;
   private final RecurrenceExecutionLogRepository recurrenceLogRepository;
+  private final SavedViewService savedViewService;
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   private final NumberFormat currencyFormat;
   private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy");
+
+  // Tile configuration
+  private static final String DASHBOARD_CONFIG_NAME = "Dashboard Configuration";
+  private FlexLayout tilesContainer;
+  private Company company;
+  private Set<String> visibleTiles;
+
+  // Tile identifiers (in default display order)
+  private static final String TILE_CASH_BALANCE = "cashBalance";
+  private static final String TILE_THIS_MONTH = "thisMonth";
+  private static final String TILE_INCOME_TREND = "incomeTrend";
+  private static final String TILE_GST_DUE = "gstDue";
+  private static final String TILE_OVERDUE_AR = "overdueAR";
+  private static final String TILE_OVERDUE_AP = "overdueAP";
+  private static final String TILE_FAILED_RECURRENCES = "failedRecurrences";
+
+  // Tile display names for UI
+  private static final Map<String, String> TILE_NAMES = new LinkedHashMap<>();
+
+  static {
+    TILE_NAMES.put(TILE_CASH_BALANCE, "Cash Balance");
+    TILE_NAMES.put(TILE_THIS_MONTH, "This Month");
+    TILE_NAMES.put(TILE_INCOME_TREND, "Income Trend");
+    TILE_NAMES.put(TILE_GST_DUE, "GST Estimate");
+    TILE_NAMES.put(TILE_OVERDUE_AR, "Overdue Receivables");
+    TILE_NAMES.put(TILE_OVERDUE_AP, "Overdue Payables");
+    TILE_NAMES.put(TILE_FAILED_RECURRENCES, "Failed Recurrences");
+  }
 
   public DashboardView(
       CompanyContextService companyContextService,
@@ -68,7 +115,8 @@ public class DashboardView extends VerticalLayout {
       ReportingService reportingService,
       SalesInvoiceRepository salesInvoiceRepository,
       SupplierBillRepository supplierBillRepository,
-      RecurrenceExecutionLogRepository recurrenceLogRepository) {
+      RecurrenceExecutionLogRepository recurrenceLogRepository,
+      SavedViewService savedViewService) {
     this.companyContextService = companyContextService;
     this.accountRepository = accountRepository;
     this.ledgerEntryRepository = ledgerEntryRepository;
@@ -77,6 +125,7 @@ public class DashboardView extends VerticalLayout {
     this.salesInvoiceRepository = salesInvoiceRepository;
     this.supplierBillRepository = supplierBillRepository;
     this.recurrenceLogRepository = recurrenceLogRepository;
+    this.savedViewService = savedViewService;
 
     // Set up currency format for NZ
     this.currencyFormat = NumberFormat.getCurrencyInstance(new Locale("en", "NZ"));
@@ -85,32 +134,205 @@ public class DashboardView extends VerticalLayout {
     setPadding(true);
     setSpacing(true);
 
-    H2 title = new H2("Dashboard");
-    title.getStyle().set("margin-top", "0");
+    this.company = companyContextService.getCurrentCompany();
 
-    Company company = companyContextService.getCurrentCompany();
+    // Load tile configuration
+    loadTileConfiguration();
+
+    // Header with title and configure button
+    HorizontalLayout header = new HorizontalLayout();
+    header.setWidthFull();
+    header.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
+    header.setAlignItems(FlexComponent.Alignment.CENTER);
+
+    H2 title = new H2("Dashboard");
+    title.getStyle().set("margin-top", "0").set("margin-bottom", "0");
+
+    Button configureButton = new Button("Configure Tiles", VaadinIcon.COG.create());
+    configureButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+    configureButton.addClickListener(e -> openConfigureTilesDialog());
+    configureButton.getElement().setAttribute("title", "Choose which tiles to display");
+
+    header.add(title, configureButton);
+
     Paragraph welcome = new Paragraph("Welcome to MoniWorks - " + company.getName());
     welcome.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
     // Create tiles container with flex wrap
-    FlexLayout tilesContainer = new FlexLayout();
+    tilesContainer = new FlexLayout();
     tilesContainer.setFlexWrap(FlexLayout.FlexWrap.WRAP);
     tilesContainer
         .getStyle()
         .set("gap", "var(--lumo-space-l)")
         .set("margin-top", "var(--lumo-space-l)");
 
-    // Add dashboard tiles
-    tilesContainer.add(
-        createCashBalanceTile(company),
-        createThisMonthTile(company),
-        createIncomeTrendTile(company),
-        createGstDueTile(company),
-        createOverdueReceivablesTile(company),
-        createOverduePayablesTile(company),
-        createFailedRecurrencesTile(company));
+    // Add visible dashboard tiles
+    refreshTiles();
 
-    add(title, welcome, tilesContainer);
+    add(header, welcome, tilesContainer);
+  }
+
+  /** Loads the user's tile configuration from SavedView. */
+  private void loadTileConfiguration() {
+    User user = companyContextService.getCurrentUser();
+    if (company == null || user == null) {
+      // Default to all tiles visible
+      visibleTiles = new HashSet<>(TILE_NAMES.keySet());
+      return;
+    }
+
+    try {
+      var configOpt =
+          savedViewService.findByName(
+              company, user, SavedView.EntityType.DASHBOARD, DASHBOARD_CONFIG_NAME);
+
+      if (configOpt.isPresent() && configOpt.get().getColumnsJson() != null) {
+        List<String> savedTiles =
+            objectMapper.readValue(
+                configOpt.get().getColumnsJson(), new TypeReference<List<String>>() {});
+        visibleTiles = new HashSet<>(savedTiles);
+      } else {
+        // Default to all tiles visible
+        visibleTiles = new HashSet<>(TILE_NAMES.keySet());
+      }
+    } catch (Exception e) {
+      // On error, default to all tiles visible
+      visibleTiles = new HashSet<>(TILE_NAMES.keySet());
+    }
+  }
+
+  /** Saves the user's tile configuration to SavedView. */
+  private void saveTileConfiguration() {
+    User user = companyContextService.getCurrentUser();
+    if (company == null || user == null) {
+      return;
+    }
+
+    try {
+      // Save visible tiles as JSON array
+      String tilesJson = objectMapper.writeValueAsString(new ArrayList<>(visibleTiles));
+
+      // Use saveOrUpdate to create or update the configuration
+      savedViewService.saveOrUpdate(
+          company,
+          user,
+          SavedView.EntityType.DASHBOARD,
+          DASHBOARD_CONFIG_NAME,
+          tilesJson,
+          null,
+          null);
+    } catch (Exception e) {
+      Notification.show(
+              "Failed to save dashboard configuration", 3000, Notification.Position.MIDDLE)
+          .addThemeVariants(NotificationVariant.LUMO_ERROR);
+    }
+  }
+
+  /** Refreshes the tiles container based on current visibility settings. */
+  private void refreshTiles() {
+    tilesContainer.removeAll();
+
+    // Map tile IDs to their creation functions
+    Map<String, Function<Company, Div>> tileCreators = new LinkedHashMap<>();
+    tileCreators.put(TILE_CASH_BALANCE, this::createCashBalanceTile);
+    tileCreators.put(TILE_THIS_MONTH, this::createThisMonthTile);
+    tileCreators.put(TILE_INCOME_TREND, this::createIncomeTrendTile);
+    tileCreators.put(TILE_GST_DUE, this::createGstDueTile);
+    tileCreators.put(TILE_OVERDUE_AR, this::createOverdueReceivablesTile);
+    tileCreators.put(TILE_OVERDUE_AP, this::createOverduePayablesTile);
+    tileCreators.put(TILE_FAILED_RECURRENCES, this::createFailedRecurrencesTile);
+
+    // Add tiles in order, only if visible
+    for (String tileId : TILE_NAMES.keySet()) {
+      if (visibleTiles.contains(tileId)) {
+        Function<Company, Div> creator = tileCreators.get(tileId);
+        if (creator != null) {
+          tilesContainer.add(creator.apply(company));
+        }
+      }
+    }
+
+    // Show message if no tiles visible
+    if (tilesContainer.getComponentCount() == 0) {
+      Paragraph noTiles =
+          new Paragraph(
+              "No tiles selected. Click 'Configure Tiles' to select which tiles to display.");
+      noTiles.getStyle().set("color", "var(--lumo-secondary-text-color)");
+      tilesContainer.add(noTiles);
+    }
+  }
+
+  /** Opens a dialog to configure which tiles are visible on the dashboard. */
+  private void openConfigureTilesDialog() {
+    Dialog dialog = new Dialog();
+    dialog.setHeaderTitle("Configure Dashboard Tiles");
+    dialog.setWidth("400px");
+
+    VerticalLayout layout = new VerticalLayout();
+    layout.setPadding(false);
+    layout.setSpacing(true);
+
+    Paragraph instructions = new Paragraph("Select which tiles to display on your dashboard:");
+    instructions.getStyle().set("color", "var(--lumo-secondary-text-color)");
+    layout.add(instructions);
+
+    // Create checkbox for each tile
+    Map<String, Checkbox> checkboxMap = new LinkedHashMap<>();
+    for (Map.Entry<String, String> entry : TILE_NAMES.entrySet()) {
+      String tileId = entry.getKey();
+      String tileName = entry.getValue();
+
+      Checkbox checkbox = new Checkbox(tileName);
+      checkbox.setValue(visibleTiles.contains(tileId));
+      checkboxMap.put(tileId, checkbox);
+      layout.add(checkbox);
+    }
+
+    // Select All / Deselect All buttons
+    HorizontalLayout selectionButtons = new HorizontalLayout();
+    Button selectAllButton = new Button("Select All");
+    selectAllButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    selectAllButton.addClickListener(e -> checkboxMap.values().forEach(cb -> cb.setValue(true)));
+
+    Button deselectAllButton = new Button("Deselect All");
+    deselectAllButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    deselectAllButton.addClickListener(e -> checkboxMap.values().forEach(cb -> cb.setValue(false)));
+
+    selectionButtons.add(selectAllButton, deselectAllButton);
+    layout.add(selectionButtons);
+
+    dialog.add(layout);
+
+    // Save button
+    Button saveButton = new Button("Save");
+    saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    saveButton.addClickListener(
+        e -> {
+          // Update visible tiles set
+          visibleTiles.clear();
+          for (Map.Entry<String, Checkbox> entry : checkboxMap.entrySet()) {
+            if (entry.getValue().getValue()) {
+              visibleTiles.add(entry.getKey());
+            }
+          }
+
+          // Save to database
+          saveTileConfiguration();
+
+          // Refresh dashboard
+          refreshTiles();
+
+          dialog.close();
+
+          Notification.show(
+                  "Dashboard configuration saved", 2000, Notification.Position.BOTTOM_START)
+              .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+        });
+
+    Button cancelButton = new Button("Cancel", e -> dialog.close());
+
+    dialog.getFooter().add(cancelButton, saveButton);
+    dialog.open();
   }
 
   /**

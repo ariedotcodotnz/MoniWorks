@@ -28,7 +28,8 @@ public class SavedView {
     ACCOUNT,
     SALES_INVOICE,
     SUPPLIER_BILL,
-    RECURRING_TEMPLATE
+    RECURRING_TEMPLATE,
+    DASHBOARD
   }
 
   @Id

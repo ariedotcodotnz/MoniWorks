@@ -63,6 +63,7 @@
 - **Phase 56 Failed Recurrence Dashboard Widget COMPLETE** - Tag: 0.6.8
 - **Phase 57 AP_CLERK and AR_CLERK Role Templates COMPLETE** - Tag: 0.6.9
 - **Phase 58 Bulk Email to Contacts COMPLETE** - Tag: 0.7.0
+- **Phase 59 Configurable Dashboard Tiles COMPLETE** - Tag: 0.7.1
 - All 255 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1558,6 +1559,25 @@ Per specs, Release 1 must deliver:
     - Shows success/failure counts in results area
     - Notification summary on completion
 - [x] Uses existing SMTP infrastructure from Phase 39
+- [x] All 255 tests passing
+- [x] No forbidden markers
+
+### Phase 59: Configurable Dashboard Tiles (COMPLETE) - Tag: 0.7.1
+- [x] Added configurable dashboard tiles per spec 13 requirement: "configurable tiles"
+- [x] Implementation details:
+  - Added DASHBOARD to SavedView.EntityType enum
+  - Added SavedViewService dependency to DashboardView
+  - Added "Configure Tiles" button to dashboard header
+  - Created openConfigureTilesDialog() method with:
+    - Checkbox for each of the 7 dashboard tiles
+    - Select All / Deselect All buttons
+    - User preferences saved to SavedView entity (columnsJson field)
+    - Loads configuration on dashboard view construction
+    - Refreshes tile display after save
+  - Available tiles: Cash Balance, This Month, Income Trend, GST Estimate, Overdue Receivables, Overdue Payables, Failed Recurrences
+  - Default shows all tiles if no configuration exists
+  - Per-user per-company configuration via SavedView
+- [x] Uses existing SavedViewService.saveOrUpdate() for persistence
 - [x] All 255 tests passing
 - [x] No forbidden markers
 
