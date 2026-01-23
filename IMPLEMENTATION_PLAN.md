@@ -29,7 +29,8 @@
 - **Phase 21 Credit Notes for Invoices COMPLETE** - Tag: 0.3.3
 - **Phase 22 Contact CSV Import COMPLETE** - Tag: 0.3.4
 - **Phase 23 Budget CSV Import COMPLETE** - Tag: 0.3.5
-- All 127 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ApplicationTest: 1)
+- **Phase 24 Login Event Tracking COMPLETE** - Tag: 0.3.6
+- All 136 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ApplicationTest: 1)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
 - Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql
@@ -695,6 +696,33 @@ Per specs, Release 1 must deliver:
   - Amount with commas and dollar signs
   - Preview mode without saving
 
+### Phase 24: Login Event Tracking (COMPLETE) - Tag: 0.3.6
+- [x] AuthenticationEventListener for login events (spec 14)
+  - Listens for Spring Security AuthenticationSuccessEvent
+  - Logs USER_LOGIN events via AuditService.logLogin()
+  - Extracts user from UserDetails or String principal
+  - Handles login failure events (LOGIN_FAILED) with attempt details
+  - Logs failed login attempts with email and reason
+- [x] AuditLogoutHandler for logout events (spec 14)
+  - Implements LogoutHandler interface
+  - Logs USER_LOGOUT events before session destruction
+  - Registered with SecurityFilterChain logout configuration
+- [x] SecurityConfig updates
+  - Added AuditLogoutHandler to constructor injection
+  - Configured logout handler in security filter chain
+  - Logout redirects to /login after logging event
+- [x] AuthenticationEventListenerTest with 5 unit tests covering:
+  - Login success with UserDetails principal
+  - Login success with String principal
+  - User not found does not log
+  - Login failure logs attempt details
+  - Null principal logs as unknown
+- [x] AuditLogoutHandlerTest with 4 unit tests covering:
+  - Logout with UserDetails principal
+  - Logout with String principal
+  - Null authentication does not log
+  - User not found does not log
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -747,6 +775,8 @@ Per specs, Release 1 must deliver:
 - User invitation tokens use SecureRandom with Base64 URL encoding for security
 - Vaadin @AnonymousAllowed annotation allows public access to views without Spring Security config changes
 - ReflectionTestUtils.setField() used to inject @Value fields in unit tests
+- Spring Security @EventListener with AuthenticationSuccessEvent/AbstractAuthenticationFailureEvent provides login event tracking
+- LogoutHandler interface allows audit logging before session is destroyed during logout
 
 ## Technical Notes
 - Build: `./mvnw compile`

@@ -21,9 +21,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     private final CompanyPermissionEvaluator permissionEvaluator;
+    private final AuditLogoutHandler auditLogoutHandler;
 
-    public SecurityConfig(CompanyPermissionEvaluator permissionEvaluator) {
+    public SecurityConfig(CompanyPermissionEvaluator permissionEvaluator,
+                          AuditLogoutHandler auditLogoutHandler) {
         this.permissionEvaluator = permissionEvaluator;
+        this.auditLogoutHandler = auditLogoutHandler;
     }
 
     @Bean
@@ -46,6 +49,12 @@ public class SecurityConfig {
         // Allow CSRF for H2 console
         http.csrf(csrf -> csrf
             .ignoringRequestMatchers("/h2-console/**")
+        );
+
+        // Configure logout with audit logging
+        http.logout(logout -> logout
+            .addLogoutHandler(auditLogoutHandler)
+            .logoutSuccessUrl("/login")
         );
 
         // Configure Vaadin security
