@@ -67,6 +67,7 @@
 - **Phase 60 Audit Event Retention Policy COMPLETE** - Tag: 0.7.2
 - **Phase 61 Follow-up Reminders Dashboard Tile COMPLETE** - Tag: 0.7.3
 - **Phase 62 Allocation Rule Counter-Party Matching COMPLETE** - Tag: 0.7.4
+- **Phase 63 Bulk Email Role Filtering COMPLETE** - Tag: 0.7.5
 - All 263 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 32, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1662,6 +1663,23 @@ Per specs, Release 1 must deliver:
 - [x] All 263 tests passing (AllocationRuleTest: 32)
 - [x] No forbidden markers
 
+### Phase 63: Bulk Email Role Filtering (COMPLETE) - Tag: 0.7.5
+- [x] Added role-based filtering to bulk email dialog (spec 07)
+  - Per spec 07: "Bulk email: select by role" - enables filtering contacts by ContactPerson.roleLabel
+  - Added ComboBox for role filter in bulk email dialog
+  - Dynamically fetches available role labels from company's contacts
+- [x] Added ContactPersonRepository queries
+  - findDistinctRoleLabelsByCompany() - gets all unique role labels in a company
+  - findContactsByPersonRole() - gets contacts that have a person with specified role
+- [x] Enhanced bulk email dialog filtering
+  - Role filter dropdown shows all distinct roles used in company's contacts
+  - Selecting a role filters contact grid to only contacts with someone in that role
+  - Updates selection count and instructions dynamically
+  - Select All button works with filtered contacts
+- [x] ContactsView updated with ContactPersonRepository dependency
+- [x] All 263 tests passing
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1764,6 +1782,7 @@ Per specs, Release 1 must deliver:
 - Configurable dashboard tiles - Phase 59
 - Audit event retention policy configuration (spec 14) - Phase 60
 - Allocation rule counter-party matching (spec 05) - Phase 62
+- Bulk email role filtering (spec 07) - Phase 63
 
 ## Technical Notes
 - Build: `./mvnw compile`

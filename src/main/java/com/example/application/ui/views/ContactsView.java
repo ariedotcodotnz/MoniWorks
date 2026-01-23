@@ -11,6 +11,7 @@ import java.util.List;
 import com.example.application.domain.*;
 import com.example.application.domain.Contact.ContactType;
 import com.example.application.domain.SavedView.EntityType;
+import com.example.application.repository.ContactPersonRepository;
 import com.example.application.service.AccountService;
 import com.example.application.service.CompanyContextService;
 import com.example.application.service.ContactImportService;
@@ -66,6 +67,7 @@ public class ContactsView extends VerticalLayout {
   private final SavedViewService savedViewService;
   private final ContactImportService contactImportService;
   private final EmailService emailService;
+  private final ContactPersonRepository contactPersonRepository;
 
   private final Grid<Contact> grid = new Grid<>();
   private final TextField searchField = new TextField();
@@ -86,13 +88,15 @@ public class ContactsView extends VerticalLayout {
       CompanyContextService companyContextService,
       SavedViewService savedViewService,
       ContactImportService contactImportService,
-      EmailService emailService) {
+      EmailService emailService,
+      ContactPersonRepository contactPersonRepository) {
     this.contactService = contactService;
     this.accountService = accountService;
     this.companyContextService = companyContextService;
     this.savedViewService = savedViewService;
     this.contactImportService = contactImportService;
     this.emailService = emailService;
+    this.contactPersonRepository = contactPersonRepository;
 
     addClassName("contacts-view");
     setSizeFull();
@@ -1020,6 +1024,7 @@ public class ContactsView extends VerticalLayout {
   /**
    * Opens a dialog for sending bulk emails to contacts. Users can select which contacts to include,
    * compose a subject and message, and send to all selected contacts with valid email addresses.
+   * Per spec 07: "Bulk email: select by role" - supports filtering by ContactPerson role labels.
    */
   private void openBulkEmailDialog() {
     Company company = companyContextService.getCurrentCompany();
@@ -1033,7 +1038,7 @@ public class ContactsView extends VerticalLayout {
     Dialog dialog = new Dialog();
     dialog.setHeaderTitle("Bulk Email to Contacts");
     dialog.setWidth("800px");
-    dialog.setHeight("700px");
+    dialog.setHeight("750px");
 
     VerticalLayout layout = new VerticalLayout();
     layout.setPadding(false);
@@ -1061,13 +1066,13 @@ public class ContactsView extends VerticalLayout {
     }
 
     // Filter to only contacts with valid email addresses
-    List<Contact> contactsWithEmail =
+    final List<Contact> baseContactsWithEmail =
         allContacts.stream()
             .filter(c -> c.getEmail() != null && !c.getEmail().isBlank())
             .filter(Contact::isActive)
             .toList();
 
-    if (contactsWithEmail.isEmpty()) {
+    if (baseContactsWithEmail.isEmpty()) {
       Notification.show(
               "No contacts with email addresses found. Please add email addresses to contacts first.",
               5000,
@@ -1076,19 +1081,27 @@ public class ContactsView extends VerticalLayout {
       return;
     }
 
+    // Role filter - per spec 07: "Bulk email: select by role"
+    ComboBox<String> roleFilter = new ComboBox<>("Filter by Role");
+    List<String> roleLabels = contactPersonRepository.findDistinctRoleLabelsByCompany(company);
+    roleFilter.setItems(roleLabels);
+    roleFilter.setPlaceholder("All roles");
+    roleFilter.setClearButtonVisible(true);
+    roleFilter.setWidth("200px");
+
     // Instructions
     Span instructions =
         new Span(
             String.format(
                 "Select contacts to email. Found %d contacts with email addresses (based on current filters).",
-                contactsWithEmail.size()));
+                baseContactsWithEmail.size()));
     instructions.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
     // Contact selection grid
     Grid<Contact> contactGrid = new Grid<>();
     contactGrid.setSelectionMode(Grid.SelectionMode.MULTI);
-    contactGrid.setItems(contactsWithEmail);
-    contactGrid.setHeight("200px");
+    contactGrid.setItems(baseContactsWithEmail);
+    contactGrid.setHeight("180px");
     contactGrid.addColumn(Contact::getName).setHeader("Name").setAutoWidth(true);
     contactGrid.addColumn(Contact::getEmail).setHeader("Email").setAutoWidth(true);
     contactGrid
@@ -1098,10 +1111,10 @@ public class ContactsView extends VerticalLayout {
         .setFlexGrow(0);
 
     // Select all by default
-    contactGrid.asMultiSelect().select(contactsWithEmail);
+    contactGrid.asMultiSelect().select(baseContactsWithEmail);
 
     // Selection summary
-    Span selectionSummary = new Span(contactsWithEmail.size() + " contacts selected");
+    Span selectionSummary = new Span(baseContactsWithEmail.size() + " contacts selected");
     selectionSummary.getStyle().set("font-weight", "bold");
 
     contactGrid
@@ -1112,14 +1125,56 @@ public class ContactsView extends VerticalLayout {
               selectionSummary.setText(count + " contact" + (count != 1 ? "s" : "") + " selected");
             });
 
+    // Role filter listener - filters contacts based on selected role
+    roleFilter.addValueChangeListener(
+        e -> {
+          String selectedRole = e.getValue();
+          List<Contact> filteredContacts;
+          if (selectedRole == null || selectedRole.isBlank()) {
+            // No role filter - show all contacts with email
+            filteredContacts = baseContactsWithEmail;
+          } else {
+            // Filter to contacts that have a person with the selected role
+            List<Contact> contactsWithRole =
+                contactPersonRepository.findContactsByPersonRole(company, selectedRole);
+            filteredContacts =
+                baseContactsWithEmail.stream()
+                    .filter(
+                        c -> contactsWithRole.stream().anyMatch(rc -> rc.getId().equals(c.getId())))
+                    .toList();
+          }
+          contactGrid.setItems(filteredContacts);
+          contactGrid.asMultiSelect().select(filteredContacts);
+          instructions.setText(
+              String.format(
+                  "Select contacts to email. Found %d contacts%s.",
+                  filteredContacts.size(),
+                  selectedRole != null
+                      ? " with role '" + selectedRole + "'"
+                      : " with email addresses"));
+        });
+
     // Select/Deselect all buttons
     Button selectAllButton = new Button("Select All");
     selectAllButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
-    selectAllButton.addClickListener(e -> contactGrid.asMultiSelect().select(contactsWithEmail));
+    selectAllButton.addClickListener(
+        e -> {
+          @SuppressWarnings("unchecked")
+          List<Contact> currentItems =
+              (List<Contact>)
+                  contactGrid
+                      .getDataProvider()
+                      .fetch(new com.vaadin.flow.data.provider.Query<>())
+                      .toList();
+          contactGrid.asMultiSelect().select(currentItems);
+        });
 
     Button deselectAllButton = new Button("Deselect All");
     deselectAllButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     deselectAllButton.addClickListener(e -> contactGrid.asMultiSelect().deselectAll());
+
+    HorizontalLayout filterRow = new HorizontalLayout(roleFilter);
+    filterRow.setAlignItems(FlexComponent.Alignment.BASELINE);
 
     HorizontalLayout selectionControls =
         new HorizontalLayout(selectAllButton, deselectAllButton, selectionSummary);
@@ -1149,6 +1204,7 @@ public class ContactsView extends VerticalLayout {
 
     layout.add(
         instructions,
+        filterRow,
         contactGrid,
         selectionControls,
         composeHeader,
