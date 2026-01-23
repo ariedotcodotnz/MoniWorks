@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * View for managing transactions (Payments, Receipts, Journals).
@@ -66,6 +67,7 @@ public class TransactionsView extends VerticalLayout {
     private final SalesInvoiceService salesInvoiceService;
     private final PayableAllocationService payableAllocationService;
     private final SupplierBillService supplierBillService;
+    private final BankImportService bankImportService;
 
     private final Grid<Transaction> grid = new Grid<>();
     private final ComboBox<TransactionType> typeFilter = new ComboBox<>();
@@ -84,7 +86,8 @@ public class TransactionsView extends VerticalLayout {
                             ReceivableAllocationService receivableAllocationService,
                             SalesInvoiceService salesInvoiceService,
                             PayableAllocationService payableAllocationService,
-                            SupplierBillService supplierBillService) {
+                            SupplierBillService supplierBillService,
+                            BankImportService bankImportService) {
         this.transactionService = transactionService;
         this.postingService = postingService;
         this.accountService = accountService;
@@ -96,6 +99,7 @@ public class TransactionsView extends VerticalLayout {
         this.salesInvoiceService = salesInvoiceService;
         this.payableAllocationService = payableAllocationService;
         this.supplierBillService = supplierBillService;
+        this.bankImportService = bankImportService;
 
         addClassName("transactions-view");
         setSizeFull();
@@ -431,6 +435,64 @@ public class TransactionsView extends VerticalLayout {
         TextField memoField = new TextField("Memo");
         memoField.setWidth("200px");
 
+        // Allocation rule suggestion display (Spec 05, Spec 11)
+        Span suggestionSpan = new Span();
+        suggestionSpan.setVisible(false);
+        suggestionSpan.getStyle()
+            .set("background-color", "var(--lumo-primary-color-10pct)")
+            .set("padding", "0.5rem")
+            .set("border-radius", "var(--lumo-border-radius-m)")
+            .set("display", "inline-flex")
+            .set("align-items", "center")
+            .set("gap", "0.5rem");
+
+        Button applySuggestionBtn = new Button("Apply", VaadinIcon.CHECK.create());
+        applySuggestionBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_SUCCESS);
+        applySuggestionBtn.setVisible(false);
+
+        // Check allocation rules when memo changes (blur event)
+        memoField.addBlurListener(event -> {
+            String memoText = memoField.getValue();
+            if (memoText != null && !memoText.isBlank() && accountCombo.isEmpty()) {
+                Optional<AllocationRule> matchingRule = bankImportService.findMatchingRule(company, memoText);
+                if (matchingRule.isPresent()) {
+                    AllocationRule rule = matchingRule.get();
+                    suggestionSpan.setText("Suggested: " + rule.getTargetAccount().getCode() +
+                        " - " + rule.getTargetAccount().getName());
+                    suggestionSpan.setVisible(true);
+                    applySuggestionBtn.setVisible(true);
+
+                    // Store rule data for apply button
+                    applySuggestionBtn.getElement().setProperty("ruleAccountId",
+                        String.valueOf(rule.getTargetAccount().getId()));
+                    applySuggestionBtn.getElement().setProperty("ruleTaxCode",
+                        rule.getTargetTaxCode() != null ? rule.getTargetTaxCode() : "");
+
+                    applySuggestionBtn.addClickListener(applyEvent -> {
+                        // Apply the suggested account
+                        accounts.stream()
+                            .filter(a -> a.getId().equals(rule.getTargetAccount().getId()))
+                            .findFirst()
+                            .ifPresent(accountCombo::setValue);
+
+                        // Apply the suggested tax code if present
+                        if (rule.getTargetTaxCode() != null && !rule.getTargetTaxCode().isBlank()) {
+                            taxCodes.stream()
+                                .filter(tc -> tc.getCode().equals(rule.getTargetTaxCode()))
+                                .findFirst()
+                                .ifPresent(taxCodeCombo::setValue);
+                        }
+
+                        suggestionSpan.setVisible(false);
+                        applySuggestionBtn.setVisible(false);
+                    });
+                } else {
+                    suggestionSpan.setVisible(false);
+                    applySuggestionBtn.setVisible(false);
+                }
+            }
+        });
+
         Button addLineBtn = new Button("Add", VaadinIcon.PLUS.create());
         addLineBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         addLineBtn.addClickListener(e -> {
@@ -459,10 +521,18 @@ public class TransactionsView extends VerticalLayout {
             amountField.clear();
             taxCodeCombo.clear();
             memoField.clear();
+            suggestionSpan.setVisible(false);
+            applySuggestionBtn.setVisible(false);
             accountCombo.focus();
         });
 
         addLineForm.add(accountCombo, directionCombo, amountField, taxCodeCombo, memoField, addLineBtn);
+
+        // Suggestion row layout
+        HorizontalLayout suggestionRow = new HorizontalLayout(suggestionSpan, applySuggestionBtn);
+        suggestionRow.setAlignItems(FlexComponent.Alignment.CENTER);
+        suggestionRow.setSpacing(true);
+        suggestionRow.setVisible(true);  // Container always visible, contents controlled by child visibility
 
         updateBalance(lineEntries, balanceSpan);
 
@@ -637,6 +707,7 @@ public class TransactionsView extends VerticalLayout {
             linesTitle,
             linesGrid,
             addLineForm,
+            suggestionRow,
             balanceSpan,
             attachmentsTitle,
             attachmentsContainer,

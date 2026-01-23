@@ -38,6 +38,7 @@
 - **Phase 30 Bank Register Transaction Drilldown COMPLETE** - Tag: 0.4.2
 - **Phase 31 Tax Basis Settings UI COMPLETE** - Tag: 0.4.3
 - **Phase 32 Tax Default Auto-Population COMPLETE** - Tag: 0.4.4
+- **Phase 33 Allocation Rule Auto-Suggest COMPLETE** - Tag: 0.4.5
 - All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
@@ -917,6 +918,18 @@ Per specs, Release 1 must deliver:
   - Looks up matching TaxCode object from available tax codes list
   - User can still override the auto-populated tax code
   - Improves data entry efficiency by reducing manual tax code selection
+- [x] All 150 tests passing
+- [x] No forbidden markers
+
+### Phase 33: Allocation Rule Auto-Suggest in Manual Entry (COMPLETE) - Tag: 0.4.5
+- [x] Allocation rule suggestions in TransactionsView (spec 05, spec 11)
+  - Added BankImportService dependency for allocation rule matching
+  - When memo field loses focus and account is not yet selected, checks allocation rules
+  - Shows suggestion display with matching rule's target account and tax code
+  - "Apply" button allows user to accept suggestion, auto-fills account and tax code
+  - Suggestion hidden when line is added and form is cleared
+  - Uses same findMatchingRule() method as bank reconciliation for consistency
+  - Improves manual transaction entry efficiency for recurring payees
 - [x] All 150 tests passing
 - [x] No forbidden markers
 
