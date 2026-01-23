@@ -1265,6 +1265,8 @@ Per specs, Release 1 must deliver:
 - ReconciliationMatch entity provides audit trail for bank reconciliation - stores who matched what, when, and how (AUTO vs MANUAL); keeps inactive records for audit history
 - LedgerEntry reconciliation status is operational metadata (mutable) separate from immutable accounting data; use ReconciliationStatus enum
 - BankImportService.matchItem() has overloaded versions: (item, transaction) for legacy compatibility, (item, transaction, user) for manual with audit, (item, transaction, matchType, user) for full control
+- Account.setBankAccount(boolean) not setIsBankAccount(); Transaction.setTransactionDate(LocalDate) not setDate()
+- Overpayment handling: ReceivableAllocationService and PayableAllocationService allow allocations exceeding invoice/bill balance - creates negative balance (customer/supplier credit)
 
 ## Technical Notes
 - Build: `./mvnw compile`
