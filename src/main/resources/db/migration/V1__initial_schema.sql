@@ -3,7 +3,7 @@
 
 -- Company (tenant)
 CREATE TABLE company (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     country VARCHAR(2) NOT NULL,
     base_currency VARCHAR(3) NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE company (
 
 -- User
 CREATE TABLE app_user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     display_name VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255),
@@ -26,7 +26,7 @@ CREATE TABLE app_user (
 
 -- Permission
 CREATE TABLE permission (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
     description VARCHAR(255),
     category VARCHAR(50)
@@ -34,7 +34,7 @@ CREATE TABLE permission (
 
 -- Role
 CREATE TABLE role (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     description VARCHAR(255),
     company_id BIGINT,
@@ -55,7 +55,7 @@ CREATE TABLE role_permission (
 
 -- Company membership (user-company-role)
 CREATE TABLE company_membership (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     company_id BIGINT NOT NULL,
     role_id BIGINT NOT NULL,
@@ -70,7 +70,7 @@ CREATE TABLE company_membership (
 
 -- Department (cost centre)
 CREATE TABLE department (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     code VARCHAR(5) NOT NULL,
     name VARCHAR(50) NOT NULL,
@@ -85,7 +85,7 @@ CREATE TABLE department (
 
 -- Account (Chart of Accounts)
 CREATE TABLE account (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     code VARCHAR(7) NOT NULL,
     alt_code VARCHAR(20),
@@ -104,7 +104,7 @@ CREATE TABLE account (
 
 -- Fiscal Year
 CREATE TABLE fiscal_year (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE fiscal_year (
 
 -- Period (within fiscal year)
 CREATE TABLE period (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     fiscal_year_id BIGINT NOT NULL,
     period_index INT NOT NULL,
     start_date DATE NOT NULL,
@@ -129,7 +129,7 @@ CREATE TABLE period (
 
 -- Tax Code
 CREATE TABLE tax_code (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     code VARCHAR(10) NOT NULL,
     name VARCHAR(50) NOT NULL,
@@ -145,7 +145,7 @@ CREATE TABLE tax_code (
 
 -- Transaction
 CREATE TABLE transaction (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     type VARCHAR(20) NOT NULL,
     transaction_date DATE NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE transaction (
 
 -- Transaction Line
 CREATE TABLE transaction_line (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     transaction_id BIGINT NOT NULL,
     line_index INT NOT NULL,
     account_id BIGINT NOT NULL,
@@ -178,7 +178,7 @@ CREATE TABLE transaction_line (
 
 -- Ledger Entry (immutable)
 CREATE TABLE ledger_entry (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     transaction_id BIGINT NOT NULL,
     transaction_line_id BIGINT NOT NULL,
@@ -201,7 +201,7 @@ CREATE INDEX idx_ledger_account ON ledger_entry(account_id);
 
 -- Audit Event
 CREATE TABLE audit_event (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actor_id BIGINT,

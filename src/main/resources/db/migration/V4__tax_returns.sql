@@ -3,7 +3,7 @@
 
 -- Tax Return
 CREATE TABLE tax_return (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
@@ -28,7 +28,7 @@ CREATE INDEX idx_tax_return_company_period ON tax_return(company_id, start_date,
 
 -- Tax Return Line (boxes)
 CREATE TABLE tax_return_line (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     tax_return_id BIGINT NOT NULL,
     box_code VARCHAR(20) NOT NULL,
     box_description VARCHAR(100),

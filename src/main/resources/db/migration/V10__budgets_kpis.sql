@@ -3,7 +3,7 @@
 
 -- Budget table - stores budget metadata
 CREATE TABLE budget (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     name VARCHAR(100) NOT NULL,
     budget_type VARCHAR(1) NOT NULL,
@@ -20,7 +20,7 @@ CREATE INDEX idx_budget_company_type ON budget(company_id, budget_type);
 
 -- Budget line table - stores budget amounts per account/period/department
 CREATE TABLE budget_line (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     budget_id BIGINT NOT NULL,
     period_id BIGINT NOT NULL,
     account_id BIGINT NOT NULL,
@@ -42,7 +42,7 @@ CREATE INDEX idx_budget_line_dept ON budget_line(department_id);
 
 -- KPI table - stores KPI definitions
 CREATE TABLE kpi (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     code VARCHAR(20) NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -59,7 +59,7 @@ CREATE INDEX idx_kpi_company ON kpi(company_id);
 
 -- KPI value table - stores KPI values per period
 CREATE TABLE kpi_value (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     kpi_id BIGINT NOT NULL,
     period_id BIGINT NOT NULL,
     value DECIMAL(19,4) NOT NULL DEFAULT 0,

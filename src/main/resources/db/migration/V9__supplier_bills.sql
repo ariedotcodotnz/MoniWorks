@@ -2,7 +2,7 @@
 
 -- Main supplier bill header
 CREATE TABLE supplier_bill (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     bill_number VARCHAR(50) NOT NULL,
     contact_id BIGINT NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE supplier_bill (
 
 -- Supplier bill line items
 CREATE TABLE supplier_bill_line (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     supplier_bill_id BIGINT NOT NULL,
     line_index INT NOT NULL,
     product_id BIGINT,
@@ -51,7 +51,7 @@ CREATE TABLE supplier_bill_line (
 
 -- Payment-to-bill allocation tracking
 CREATE TABLE payable_allocation (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     payment_transaction_id BIGINT NOT NULL,
     supplier_bill_id BIGINT NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE payable_allocation (
 
 -- Payment run for batch payments
 CREATE TABLE payment_run (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     run_date DATE NOT NULL,
     bank_account_id BIGINT NOT NULL,

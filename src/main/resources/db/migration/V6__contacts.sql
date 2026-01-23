@@ -1,6 +1,6 @@
 -- Contacts table for customers and suppliers
 CREATE TABLE contact (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     code VARCHAR(11) NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -38,7 +38,7 @@ CREATE INDEX idx_contact_active ON contact(company_id, active);
 
 -- Contact people (multiple people per contact)
 CREATE TABLE contact_person (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     contact_id BIGINT NOT NULL,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(100),
@@ -54,7 +54,7 @@ CREATE INDEX idx_contact_person_contact ON contact_person(contact_id);
 
 -- Contact notes and interaction history
 CREATE TABLE contact_note (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     contact_id BIGINT NOT NULL,
     note_text VARCHAR(2000) NOT NULL,
     follow_up_date DATE,

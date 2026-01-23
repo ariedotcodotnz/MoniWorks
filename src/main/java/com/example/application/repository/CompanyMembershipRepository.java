@@ -47,4 +47,9 @@ public interface CompanyMembershipRepository extends JpaRepository<CompanyMember
       "SELECT cm FROM CompanyMembership cm WHERE cm.company = :company "
           + "AND cm.status = com.example.application.domain.CompanyMembership.MembershipStatus.ACTIVE")
   List<CompanyMembership> findActiveByCompany(@Param("company") Company company);
+
+  @Query(
+      "SELECT cm FROM CompanyMembership cm JOIN FETCH cm.role WHERE cm.user = :user AND cm.company = :company")
+  Optional<CompanyMembership> findByUserAndCompanyWithRole(
+      @Param("user") User user, @Param("company") Company company);
 }

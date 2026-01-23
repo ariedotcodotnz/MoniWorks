@@ -3,7 +3,7 @@
 
 -- Attachment (file metadata)
 CREATE TABLE attachment (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     filename VARCHAR(255) NOT NULL,
     mime_type VARCHAR(100) NOT NULL,
@@ -21,7 +21,7 @@ CREATE INDEX idx_attachment_checksum ON attachment(company_id, checksum_sha256);
 
 -- Attachment Link (many-to-many link between attachments and entities)
 CREATE TABLE attachment_link (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     attachment_id BIGINT NOT NULL,
     entity_type VARCHAR(20) NOT NULL,
     entity_id BIGINT NOT NULL,

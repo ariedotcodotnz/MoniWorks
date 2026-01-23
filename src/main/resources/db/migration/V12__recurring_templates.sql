@@ -3,7 +3,7 @@
 
 -- Recurring template table - stores template configuration
 CREATE TABLE recurring_template (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     name VARCHAR(100) NOT NULL,
     template_type VARCHAR(20) NOT NULL,
@@ -36,7 +36,7 @@ CREATE INDEX idx_recurring_template_status ON recurring_template(company_id, sta
 
 -- Recurrence execution log table - tracks execution history
 CREATE TABLE recurrence_execution_log (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     template_id BIGINT NOT NULL,
     run_at TIMESTAMP NOT NULL,
     result VARCHAR(20) NOT NULL,

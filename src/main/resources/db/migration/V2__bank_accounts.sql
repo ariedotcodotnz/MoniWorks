@@ -9,7 +9,7 @@ ALTER TABLE account ADD COLUMN bank_currency VARCHAR(3);
 
 -- Bank Statement Import - tracks imported bank statement files
 CREATE TABLE bank_statement_import (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     account_id BIGINT NOT NULL,
     imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -24,7 +24,7 @@ CREATE TABLE bank_statement_import (
 
 -- Bank Feed Item - individual lines from imported bank statements
 CREATE TABLE bank_feed_item (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     import_id BIGINT NOT NULL,
     posted_date DATE NOT NULL,
     amount DECIMAL(19, 2) NOT NULL,
@@ -46,7 +46,7 @@ CREATE INDEX idx_bank_feed_item_fitid ON bank_feed_item(import_id, fit_id);
 
 -- Allocation Rule - rules for auto-suggesting coding during reconciliation
 CREATE TABLE allocation_rule (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     priority INT NOT NULL DEFAULT 0,
     rule_name VARCHAR(100) NOT NULL,

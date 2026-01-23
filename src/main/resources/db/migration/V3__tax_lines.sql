@@ -4,7 +4,7 @@
 -- Used for GST/VAT return generation and tax reporting
 
 CREATE TABLE tax_line (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     company_id BIGINT NOT NULL,
     ledger_entry_id BIGINT NOT NULL,
     entry_date DATE NOT NULL,
