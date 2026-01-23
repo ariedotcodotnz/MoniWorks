@@ -708,7 +708,19 @@ public class SupplierBillsView extends VerticalLayout {
         taxCodeCombo.setItemLabelGenerator(tc -> tc.getCode() + " - " + tc.getName());
         taxCodeCombo.setClearButtonVisible(true);
 
-        // Auto-fill from product
+        // Pre-populate tax code from contact's tax override (Spec 06: Tax defaults by contact)
+        Contact supplier = bill.getContact();
+        if (supplier != null && supplier.getTaxOverrideCode() != null && !supplier.getTaxOverrideCode().isBlank()) {
+            taxCodes.stream()
+                .filter(tc -> tc.getCode().equals(supplier.getTaxOverrideCode()))
+                .findFirst()
+                .ifPresent(tc -> {
+                    taxCodeCombo.setValue(tc);
+                    taxCodeCombo.setHelperText("Default from " + supplier.getName() + "'s tax override");
+                });
+        }
+
+        // Auto-fill from product (overrides contact default if product has tax code)
         productCombo.addValueChangeListener(e -> {
             Product product = e.getValue();
             if (product != null) {

@@ -40,6 +40,7 @@
 - **Phase 32 Tax Default Auto-Population COMPLETE** - Tag: 0.4.4
 - **Phase 33 Allocation Rule Auto-Suggest COMPLETE** - Tag: 0.4.5
 - **Phase 34 Balance-Forward Statements COMPLETE** - Tag: 0.4.6
+- **Phase 35 Contact Tax Override Auto-Population COMPLETE** - Tag: 0.4.7
 - All 150 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 21, InvitationServiceTest: 18, SalesInvoiceServiceTest: 11, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation
 - Database configured: H2 for development, PostgreSQL for production
@@ -962,6 +963,20 @@ Per specs, Release 1 must deliver:
 - [x] All 150 tests passing
 - [x] No forbidden markers
 
+### Phase 35: Contact Tax Override Auto-Population (COMPLETE) - Tag: 0.4.7
+- [x] Contact tax override auto-population in SalesInvoicesView (spec 06)
+  - When adding invoice lines, if customer has taxOverrideCode set, pre-populates tax code ComboBox
+  - Shows helper text "Default from [Contact Name]'s tax override" for transparency
+  - Product selection can still override contact default (higher specificity)
+  - Implements "Tax defaults by contact" requirement from Spec 06
+- [x] Contact tax override auto-population in SupplierBillsView (spec 06)
+  - When adding bill lines, if supplier has taxOverrideCode set, pre-populates tax code ComboBox
+  - Shows helper text "Default from [Contact Name]'s tax override" for transparency
+  - Product selection can still override contact default (higher specificity)
+  - Consistent behavior with SalesInvoicesView
+- [x] All 150 tests passing
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -1022,6 +1037,7 @@ Per specs, Release 1 must deliver:
 - ReportsView tabs pattern: create tab layout method returning VerticalLayout, create load method, create display method, create update export buttons method
 - Transaction.Status enum (not TransactionStatus) - access as Transaction.Status.POSTED
 - TransactionLine.taxCode is a String not TaxCode object - display directly without .getCode()
+- Contact.taxOverrideCode is used to pre-populate tax codes in invoice/bill line entry; product tax code takes precedence when product selected
 
 ## Technical Notes
 - Build: `./mvnw compile`
