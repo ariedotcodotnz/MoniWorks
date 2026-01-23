@@ -1663,6 +1663,25 @@ Per specs, Release 1 must deliver:
 - BillPdfService mirrors InvoicePdfService pattern: same fonts, colors, layout structure, and PdfSettings support for consistent PDF generation across AR and AP documents
 - ReversalLink entity formally tracks reversal relationships between transactions per spec 04 domain model; string-based "REV-" reference tracking in description is kept for backwards compatibility and quick visual identification
 
+
+## Remaining Gaps (From Spec Analysis)
+
+**Phase 2 Features (Deferred)**:
+- Calculated columns in grids (spec 15)
+- Entry screen customization (spec 15)
+- StockLocation, InventoryMovement entities (spec 08)
+- Full inventory valuation, serial/batch tracking (spec 08)
+
+**Nice-to-have Enhancements**:
+- Direct credit file export for batch payments (spec 10)
+- Price/description updates on recurrence templates (spec 11)
+- Audit event retention policy configuration (spec 14)
+
+**Completed in this session**:
+- AP_CLERK/AR_CLERK roles - Phase 57
+- Bulk email to contacts - Phase 58
+- Configurable dashboard tiles - Phase 59
+
 ## Technical Notes
 - Build: `./mvnw compile`
 - Test: `./mvnw test`
