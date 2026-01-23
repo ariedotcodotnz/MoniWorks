@@ -36,7 +36,7 @@ public class CompanyMembership {
   private Company company;
 
   @NotNull
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "role_id", nullable = false)
   private Role role;
 
