@@ -61,10 +61,11 @@
 - **Phase 54 READONLY Role UI Enforcement COMPLETE** - Tag: 0.6.6
 - **Phase 55 Posted Transaction UI Guidance COMPLETE** - Tag: 0.6.7
 - **Phase 56 Failed Recurrence Dashboard Widget COMPLETE** - Tag: 0.6.8
+- **Phase 57 AP_CLERK and AR_CLERK Role Templates COMPLETE** - Tag: 0.6.9
 - All 255 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 10, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 24, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
-- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql, V19__reconciliation_match.sql, V20__ledger_entry_reconciliation.sql, V21__allocation_rule_amount_range.sql
+- Flyway migrations: V1__initial_schema.sql, V2__bank_accounts.sql, V3__tax_lines.sql, V4__tax_returns.sql, V5__attachments.sql, V6__contacts.sql, V7__products.sql, V8__sales_invoices.sql, V9__supplier_bills.sql, V10__budgets_kpis.sql, V11__rename_kpi_value_column.sql, V12__recurring_templates.sql, V13__saved_views_search.sql, V14__statement_runs.sql, V15__additional_permissions.sql, V16__user_security_level.sql, V17__user_invitations.sql, V18__credit_notes.sql, V19__reconciliation_match.sql, V20__ledger_entry_reconciliation.sql, V21__allocation_rule_amount_range.sql, V22__debit_notes.sql, V23__reversal_link.sql, V24__clerk_roles.sql
 - All repository interfaces created (42 repositories)
 - Full service layer: CompanyService, AccountService, TransactionService, PostingService, ReportingService, UserService, AuditService, CompanyContextService, TaxCodeService, FiscalYearService, BankImportService, TaxCalculationService, TaxReturnService, AttachmentService, ContactService, ProductService, SalesInvoiceService, ReceivableAllocationService, SupplierBillService, PayableAllocationService, PaymentRunService, RemittanceAdviceService, DepartmentService, BudgetService, KPIService, RecurringTemplateService, ReportExportService, GlobalSearchService, SavedViewService, EmailService, InvoicePdfService, StatementService, RoleService, PermissionService, InvitationService, TransactionImportService
 - Full UI views: MainLayout, LoginView, DashboardView, TransactionsView, AccountsView, PeriodsView, TaxCodesView, ReportsView, BankReconciliationView, GstReturnsView, AuditEventsView, ContactsView, ProductsView, SalesInvoicesView, SupplierBillsView, DepartmentsView, BudgetsView, KPIsView, RecurringTemplatesView, GlobalSearchView, StatementRunsView, UsersView, AcceptInvitationView, RolesView, CompanySettingsView
@@ -1513,6 +1514,29 @@ Per specs, Release 1 must deliver:
     - List of up to 3 recent failures with template name and date
     - Color-coded status (green for no failures, red for failures)
   - Uses existing countRecentFailures() and findRecentByCompanyAndResult() repository methods
+- [x] All 255 tests passing
+- [x] No forbidden markers
+
+### Phase 57: AP_CLERK and AR_CLERK Role Templates (COMPLETE) - Tag: 0.6.9
+- [x] Added specialized clerk roles per spec 02 requirement: "AP_CLERK / AR_CLERK (optional): subset of AP/AR"
+- [x] Implementation details:
+  - Created V24__clerk_roles.sql migration adding two new system roles
+  - **AR_CLERK role** - Accounts Receivable specialist with permissions:
+    - VIEW_COA, VIEW_TRANSACTION, VIEW_REPORTS (core viewing)
+    - MANAGE_INVOICES, VIEW_INVOICES, MANAGE_STATEMENTS (AR operations)
+    - MANAGE_ALLOCATIONS (receipt allocation)
+    - CREATE_TRANSACTION, POST_TRANSACTION (receipt posting)
+    - MANAGE_CONTACTS (customer management)
+    - EXPORT_REPORTS (statements and reports)
+  - **AP_CLERK role** - Accounts Payable specialist with permissions:
+    - VIEW_COA, VIEW_TRANSACTION, VIEW_REPORTS (core viewing)
+    - MANAGE_BILLS, VIEW_BILLS (AP operations)
+    - MANAGE_ALLOCATIONS (payment allocation)
+    - CREATE_TRANSACTION, POST_TRANSACTION (payment posting)
+    - RECONCILE_BANK (often AP responsibility)
+    - MANAGE_CONTACTS (supplier management)
+    - EXPORT_REPORTS (remittances and reports)
+- [x] Roles visible in RolesView as system roles (read-only like ADMIN, BOOKKEEPER, READONLY)
 - [x] All 255 tests passing
 - [x] No forbidden markers
 
