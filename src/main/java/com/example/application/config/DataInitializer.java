@@ -81,7 +81,8 @@ public class DataInitializer implements ApplicationRunner {
           new PermissionDef("MANAGE_BUDGETS", "Create and manage budgets", "BUDGETING"),
           new PermissionDef("MANAGE_KPIS", "Create and manage KPIs", "BUDGETING"),
           // Automation
-          new PermissionDef("MANAGE_RECURRING", "Create and manage recurring templates", "AUTOMATION"));
+          new PermissionDef(
+              "MANAGE_RECURRING", "Create and manage recurring templates", "AUTOMATION"));
 
   // Role definitions with their permissions
   private static final Map<String, Set<String>> ROLE_PERMISSIONS =
@@ -171,7 +172,10 @@ public class DataInitializer implements ApplicationRunner {
       return;
     }
 
-    log.info("Creating missing permissions ({} exist, {} expected)", existingCount, ALL_PERMISSIONS.size());
+    log.info(
+        "Creating missing permissions ({} exist, {} expected)",
+        existingCount,
+        ALL_PERMISSIONS.size());
 
     for (PermissionDef def : ALL_PERMISSIONS) {
       if (permissionRepository.findByName(def.name()).isEmpty()) {
