@@ -74,6 +74,7 @@
 - **Phase 67 Attachment Company Ownership Verification COMPLETE** - Tag: 0.7.9
 - **Phase 68 Attachment UI for Invoices/Bills/Products/Contacts COMPLETE** - Tag: 0.8.0
 - **Phase 69 Audit Trail CSV Export COMPLETE** - Tag: 0.8.2
+- **Phase 70 Bank Reconciliation Matching Enhancement COMPLETE** - Tag: 0.8.3
 - All 290 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 13, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 32, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21, KPIImportServiceTest: 16, RecurringTemplateServiceTest: 8)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1808,6 +1809,15 @@ Per specs, Release 1 must deliver:
   - Uses StreamResource and Anchor for browser download
   - Filename includes timestamp for uniqueness (audit-trail-YYYY-MM-DD-HHmmss.csv)
   - Proper CSV field escaping for fields containing commas, quotes, or newlines
+- [x] All 290 tests passing
+- [x] No forbidden markers
+
+### Phase 70: Bank Reconciliation Matching Enhancement (COMPLETE) - Tag: 0.8.3
+- [x] Enhanced bank reconciliation matching per spec 05 line 17: "match by amount/date range/description similarity"
+- [x] Date range matching: candidate transactions now filtered to ±7 days of bank item date
+- [x] Description similarity matching: if no exact amount+date matches found, searches for transactions with similar descriptions (shared significant words of 3+ characters)
+- [x] Match Score column in candidate grid showing why each transaction was suggested (Amount, Date, Desc indicators)
+- [x] User help text explaining matching criteria
 - [x] All 290 tests passing
 - [x] No forbidden markers
 

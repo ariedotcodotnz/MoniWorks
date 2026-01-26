@@ -5,7 +5,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -590,8 +592,12 @@ public class BankReconciliationView extends VerticalLayout {
 
     Company company = companyContextService.getCurrentCompany();
 
+    // Configuration for matching criteria per spec 05: "match by amount/date range/description
+    // similarity"
+    int dateRangeDays = 7; // Transactions within ±7 days of bank item date
+
     // Find candidate transactions for matching
-    // Looking for transactions that affect the bank account with similar amounts
+    // Per spec 05 line 17: match by amount, date range, and description similarity
     List<Transaction> candidates =
         transactionService.findByCompany(company).stream()
             .filter(t -> t.isPosted())
@@ -601,18 +607,94 @@ public class BankReconciliationView extends VerticalLayout {
                         .anyMatch(l -> l.getAccount().getId().equals(selectedBankAccount.getId())))
             .filter(
                 t -> {
-                  // Find transactions with similar amounts
+                  // Match by amount: exact amount matching on bank account line
                   BigDecimal targetAmount = item.getAmount().abs();
+                  boolean amountMatches = false;
                   for (TransactionLine line : t.getLines()) {
                     if (line.getAccount().getId().equals(selectedBankAccount.getId())) {
                       if (line.getAmount().abs().compareTo(targetAmount) == 0) {
-                        return true;
+                        amountMatches = true;
+                        break;
                       }
                     }
                   }
-                  return false;
+                  if (!amountMatches) {
+                    return false;
+                  }
+
+                  // Match by date range: transaction date within ±N days of bank item posted date
+                  LocalDate bankDate = item.getPostedDate();
+                  LocalDate txDate = t.getTransactionDate();
+                  long daysDiff = Math.abs(ChronoUnit.DAYS.between(bankDate, txDate));
+                  if (daysDiff > dateRangeDays) {
+                    return false;
+                  }
+
+                  return true;
                 })
             .toList();
+
+    // If no exact matches found, also search by description similarity (broader search)
+    // This supports spec 05 "description similarity" matching
+    if (candidates.isEmpty()) {
+      String bankDesc =
+          item.getDescription() != null ? item.getDescription().toLowerCase().trim() : "";
+      candidates =
+          transactionService.findByCompany(company).stream()
+              .filter(t -> t.isPosted())
+              .filter(
+                  t ->
+                      t.getLines().stream()
+                          .anyMatch(
+                              l -> l.getAccount().getId().equals(selectedBankAccount.getId())))
+              .filter(
+                  t -> {
+                    // Match by date range only for description similarity search
+                    LocalDate bankDate = item.getPostedDate();
+                    LocalDate txDate = t.getTransactionDate();
+                    long daysDiff = Math.abs(ChronoUnit.DAYS.between(bankDate, txDate));
+                    if (daysDiff > dateRangeDays * 2) { // Allow wider date range for fuzzy matches
+                      return false;
+                    }
+
+                    // Description similarity: check if transaction description contains any
+                    // significant
+                    // words from bank description (or vice versa)
+                    if (bankDesc.isEmpty()) {
+                      return false;
+                    }
+                    String txDesc =
+                        t.getDescription() != null ? t.getDescription().toLowerCase().trim() : "";
+                    if (txDesc.isEmpty()) {
+                      return false;
+                    }
+
+                    // Simple similarity: check if descriptions share significant words (3+ chars)
+                    String[] bankWords = bankDesc.split("\\s+");
+                    for (String word : bankWords) {
+                      if (word.length() >= 3 && txDesc.contains(word)) {
+                        return true;
+                      }
+                    }
+
+                    // Also check reverse direction
+                    String[] txWords = txDesc.split("\\s+");
+                    for (String word : txWords) {
+                      if (word.length() >= 3 && bankDesc.contains(word)) {
+                        return true;
+                      }
+                    }
+
+                    return false;
+                  })
+              .toList();
+    }
+
+    // Capture for use in lambda
+    final BigDecimal bankAmount = item.getAmount().abs();
+    final LocalDate bankItemDate = item.getPostedDate();
+    final String finalBankDesc =
+        item.getDescription() != null ? item.getDescription().toLowerCase().trim() : "";
 
     Grid<Transaction> candidateGrid = new Grid<>();
     candidateGrid.setSizeFull();
@@ -642,6 +724,61 @@ public class BankReconciliationView extends VerticalLayout {
         .setHeader("Amount")
         .setAutoWidth(true);
 
+    // Match Score column - helps users understand why this transaction was suggested
+    candidateGrid
+        .addColumn(
+            t -> {
+              StringBuilder matchReason = new StringBuilder();
+
+              // Check amount match
+              boolean amountMatches = false;
+              for (TransactionLine line : t.getLines()) {
+                if (line.getAccount().getId().equals(selectedBankAccount.getId())) {
+                  if (line.getAmount().abs().compareTo(bankAmount) == 0) {
+                    amountMatches = true;
+                    break;
+                  }
+                }
+              }
+              if (amountMatches) {
+                matchReason.append("Amount");
+              }
+
+              // Check date proximity
+              long daysDiff =
+                  Math.abs(ChronoUnit.DAYS.between(bankItemDate, t.getTransactionDate()));
+              if (daysDiff == 0) {
+                if (matchReason.length() > 0) matchReason.append(" + ");
+                matchReason.append("Same Date");
+              } else if (daysDiff <= 3) {
+                if (matchReason.length() > 0) matchReason.append(" + ");
+                matchReason.append("±").append(daysDiff).append("d");
+              }
+
+              // Check description similarity
+              String txDesc =
+                  t.getDescription() != null ? t.getDescription().toLowerCase().trim() : "";
+              if (!finalBankDesc.isEmpty() && !txDesc.isEmpty()) {
+                // Check for shared significant words
+                boolean descMatches = false;
+                String[] bankWords = finalBankDesc.split("\\s+");
+                for (String word : bankWords) {
+                  if (word.length() >= 3 && txDesc.contains(word)) {
+                    descMatches = true;
+                    break;
+                  }
+                }
+                if (descMatches) {
+                  if (matchReason.length() > 0) matchReason.append(" + ");
+                  matchReason.append("Desc");
+                }
+              }
+
+              return matchReason.length() > 0 ? matchReason.toString() : "—";
+            })
+        .setHeader("Match")
+        .setAutoWidth(true);
+
     candidateGrid.setItems(candidates);
 
     Span info =
@@ -649,7 +786,8 @@ public class BankReconciliationView extends VerticalLayout {
             "Select a transaction to match with bank item: "
                 + item.getPostedDate().format(DATE_FORMAT)
                 + " / "
-                + formatAmount(item));
+                + formatAmount(item)
+                + " — Candidates matched by amount, date range (±7 days), or description similarity");
 
     Button matchBtn = new Button("Match Selected");
     matchBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
