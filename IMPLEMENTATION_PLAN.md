@@ -79,6 +79,7 @@
 - **Phase 72 Email Reports from ReportsView COMPLETE** - Tag: 0.8.5
 - **Phase 73 ProductsView Active and Inventoried Filters COMPLETE** - Tag: 0.8.6
 - **Phase 74 Cash Basis GST Return Support COMPLETE** - Tag: 0.8.7
+- **Phase 75 Posting Confirmation Dialog COMPLETE** - Tag: 0.8.8
 - All 298 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 13, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 32, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21, KPIImportServiceTest: 16, RecurringTemplateServiceTest: 8, TaxReturnServiceTest: 8)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1900,6 +1901,18 @@ Per specs, Release 1 must deliver:
   - Cash basis zero tax invoice handling
   - Cash basis empty period (zero totals)
   - Audit event logging for both bases
+
+### Phase 75: Posting Confirmation Dialog (COMPLETE) - Tag: 0.8.8
+- [x] Posting confirmation dialog in TransactionsView (spec 04, line 45)
+  - Per spec 04: "Posting action requires explicit confirmation"
+  - Created openPostConfirmationDialog() method in TransactionsView
+  - Dialog warns that posted transactions are permanent and immutable
+  - Shows transaction summary (type, description, total)
+  - Explains that corrections require using the Reverse function
+  - User must click "Post Transaction" button to confirm
+  - Cancel button returns to transaction list without posting
+- [x] All 298 tests passing
+- [x] No forbidden markers
 
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead

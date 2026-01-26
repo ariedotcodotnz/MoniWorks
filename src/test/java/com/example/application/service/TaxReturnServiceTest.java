@@ -3,7 +3,6 @@ package com.example.application.service;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,8 +13,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.application.domain.*;
@@ -82,7 +81,8 @@ class TaxReturnServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When: Generate return with Invoice basis
-    TaxReturn result = taxReturnService.generateReturn(company, startDate, endDate, Basis.INVOICE, actor);
+    TaxReturn result =
+        taxReturnService.generateReturn(company, startDate, endDate, Basis.INVOICE, actor);
 
     // Then: Totals are calculated from tax lines
     assertNotNull(result);
@@ -110,26 +110,30 @@ class TaxReturnServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When
-    TaxReturn result = taxReturnService.generateReturn(company, startDate, endDate, Basis.INVOICE, actor);
+    TaxReturn result =
+        taxReturnService.generateReturn(company, startDate, endDate, Basis.INVOICE, actor);
 
     // Then: Check report lines
     assertEquals(6, result.getLines().size());
 
     // Box 5: Total sales
-    TaxReturnLine box5 = result.getLines().stream()
-        .filter(l -> l.getBoxCode().equals("5")).findFirst().orElse(null);
+    TaxReturnLine box5 =
+        result.getLines().stream().filter(l -> l.getBoxCode().equals("5")).findFirst().orElse(null);
     assertNotNull(box5);
     assertEquals(new BigDecimal("150.00"), box5.getAmount());
 
     // Box 9: GST collected
-    TaxReturnLine box9 = result.getLines().stream()
-        .filter(l -> l.getBoxCode().equals("9")).findFirst().orElse(null);
+    TaxReturnLine box9 =
+        result.getLines().stream().filter(l -> l.getBoxCode().equals("9")).findFirst().orElse(null);
     assertNotNull(box9);
     assertEquals(new BigDecimal("15.00"), box9.getAmount());
 
     // Box 11: GST paid
-    TaxReturnLine box11 = result.getLines().stream()
-        .filter(l -> l.getBoxCode().equals("11")).findFirst().orElse(null);
+    TaxReturnLine box11 =
+        result.getLines().stream()
+            .filter(l -> l.getBoxCode().equals("11"))
+            .findFirst()
+            .orElse(null);
     assertNotNull(box11);
     assertEquals(new BigDecimal("12.00"), box11.getAmount());
   }
@@ -150,7 +154,8 @@ class TaxReturnServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When: Generate return with Cash basis
-    TaxReturn result = taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
+    TaxReturn result =
+        taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
 
     // Then: Totals are calculated from allocations
     assertNotNull(result);
@@ -175,8 +180,9 @@ class TaxReturnServiceTest {
   void generateReturn_cashBasis_handlesPartialPayments() {
     // Given: A partial payment of 25% of an invoice
     SalesInvoice invoice = createInvoice(new BigDecimal("100.00"), new BigDecimal("15.00"));
-    ReceivableAllocation allocation = new ReceivableAllocation(
-        company, createReceiptTransaction(), invoice, new BigDecimal("28.75")); // 25% of 115.00
+    ReceivableAllocation allocation =
+        new ReceivableAllocation(
+            company, createReceiptTransaction(), invoice, new BigDecimal("28.75")); // 25% of 115.00
     allocation.setAllocatedAt(Instant.now());
 
     when(receivableAllocationRepository.findByCompanyAndAllocatedAtRange(any(), any(), any()))
@@ -187,7 +193,8 @@ class TaxReturnServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When
-    TaxReturn result = taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
+    TaxReturn result =
+        taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
 
     // Then: 25% of sales and tax is recognized
     assertEquals(new BigDecimal("25.00"), result.getTotalSales()); // 100 * 0.25
@@ -198,8 +205,9 @@ class TaxReturnServiceTest {
   void generateReturn_cashBasis_handlesZeroTaxInvoices() {
     // Given: A zero-rated invoice with payment
     SalesInvoice invoice = createInvoice(new BigDecimal("100.00"), BigDecimal.ZERO);
-    ReceivableAllocation allocation = new ReceivableAllocation(
-        company, createReceiptTransaction(), invoice, new BigDecimal("100.00"));
+    ReceivableAllocation allocation =
+        new ReceivableAllocation(
+            company, createReceiptTransaction(), invoice, new BigDecimal("100.00"));
     allocation.setAllocatedAt(Instant.now());
 
     when(receivableAllocationRepository.findByCompanyAndAllocatedAtRange(any(), any(), any()))
@@ -210,7 +218,8 @@ class TaxReturnServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When
-    TaxReturn result = taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
+    TaxReturn result =
+        taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
 
     // Then: Sales counted as zero-rated
     assertEquals(new BigDecimal("100.00"), result.getTotalSales());
@@ -228,7 +237,8 @@ class TaxReturnServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When
-    TaxReturn result = taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
+    TaxReturn result =
+        taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
 
     // Then: All totals are zero
     assertEquals(BigDecimal.ZERO, result.getTotalSales());
@@ -243,8 +253,7 @@ class TaxReturnServiceTest {
   @Test
   void generateReturn_logsAuditEvent() {
     // Given
-    when(taxLineRepository.findByCompanyAndDateRange(any(), any(), any()))
-        .thenReturn(List.of());
+    when(taxLineRepository.findByCompanyAndDateRange(any(), any(), any())).thenReturn(List.of());
     when(taxReturnRepository.save(any(TaxReturn.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -252,13 +261,14 @@ class TaxReturnServiceTest {
     taxReturnService.generateReturn(company, startDate, endDate, Basis.INVOICE, actor);
 
     // Then
-    verify(auditService).logEvent(
-        eq(company),
-        eq(actor),
-        eq("TAX_RETURN_GENERATED"),
-        eq("TaxReturn"),
-        any(),
-        contains("Invoice basis"));
+    verify(auditService)
+        .logEvent(
+            eq(company),
+            eq(actor),
+            eq("TAX_RETURN_GENERATED"),
+            eq("TaxReturn"),
+            any(),
+            contains("Invoice basis"));
   }
 
   @Test
@@ -275,13 +285,14 @@ class TaxReturnServiceTest {
     taxReturnService.generateReturn(company, startDate, endDate, Basis.CASH, actor);
 
     // Then
-    verify(auditService).logEvent(
-        eq(company),
-        eq(actor),
-        eq("TAX_RETURN_GENERATED"),
-        eq("TaxReturn"),
-        any(),
-        contains("Cash basis"));
+    verify(auditService)
+        .logEvent(
+            eq(company),
+            eq(actor),
+            eq("TAX_RETURN_GENERATED"),
+            eq("TaxReturn"),
+            any(),
+            contains("Cash basis"));
   }
 
   // ==================== Helper Methods ====================
@@ -317,8 +328,8 @@ class TaxReturnServiceTest {
     SalesInvoice invoice = createInvoice(new BigDecimal("100.00"), new BigDecimal("15.00"));
     Transaction receipt = createReceiptTransaction();
 
-    ReceivableAllocation allocation = new ReceivableAllocation(
-        company, receipt, invoice, new BigDecimal("57.50")); // 50% payment
+    ReceivableAllocation allocation =
+        new ReceivableAllocation(company, receipt, invoice, new BigDecimal("57.50")); // 50% payment
     allocation.setAllocatedAt(Instant.now());
 
     return List.of(allocation);
@@ -328,15 +339,16 @@ class TaxReturnServiceTest {
     SupplierBill bill = createBill(new BigDecimal("80.00"), new BigDecimal("12.00"));
     Transaction payment = createPaymentTransaction();
 
-    PayableAllocation allocation = new PayableAllocation(
-        company, payment, bill, new BigDecimal("46.00")); // 50% payment
+    PayableAllocation allocation =
+        new PayableAllocation(company, payment, bill, new BigDecimal("46.00")); // 50% payment
     allocation.setAllocatedAt(Instant.now());
 
     return List.of(allocation);
   }
 
   private SalesInvoice createInvoice(BigDecimal subtotal, BigDecimal taxTotal) {
-    Contact customer = new Contact(company, "CUST01", "Test Customer", Contact.ContactType.CUSTOMER);
+    Contact customer =
+        new Contact(company, "CUST01", "Test Customer", Contact.ContactType.CUSTOMER);
     SalesInvoice invoice = new SalesInvoice(company, "INV-001", customer, startDate, endDate);
     invoice.setSubtotal(subtotal);
     invoice.setTaxTotal(taxTotal);

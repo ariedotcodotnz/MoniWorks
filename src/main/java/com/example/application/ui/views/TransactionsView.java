@@ -1076,15 +1076,68 @@ public class TransactionsView extends VerticalLayout implements BeforeEnterObser
   }
 
   private void postTransaction(Transaction transaction) {
-    try {
-      postingService.postTransaction(transaction, companyContextService.getCurrentUser());
-      Notification.show("Transaction posted successfully", 3000, Notification.Position.BOTTOM_START)
-          .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
-      loadTransactions();
-    } catch (IllegalStateException ex) {
-      Notification.show(ex.getMessage(), 3000, Notification.Position.MIDDLE)
-          .addThemeVariants(NotificationVariant.LUMO_ERROR);
-    }
+    openPostConfirmationDialog(transaction);
+  }
+
+  /**
+   * Opens a confirmation dialog before posting a transaction. Per spec 04: "Posting action requires
+   * explicit confirmation" because posted transactions are immutable.
+   */
+  private void openPostConfirmationDialog(Transaction transaction) {
+    Dialog dialog = new Dialog();
+    dialog.setHeaderTitle("Confirm Post Transaction");
+    dialog.setWidth("450px");
+
+    VerticalLayout content = new VerticalLayout();
+    content.setPadding(false);
+    content.setSpacing(true);
+
+    // Warning message about immutability
+    Span warningText =
+        new Span(
+            "Posting this transaction will make it permanent and immutable. "
+                + "Posted transactions cannot be edited or deleted. "
+                + "If corrections are needed, you will need to use the Reverse function.");
+    warningText.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+    // Transaction summary
+    String typeName = transaction.getType() != null ? transaction.getType().name() : "Transaction";
+    BigDecimal total =
+        transaction.getLines().stream()
+            .filter(l -> l.getDirection() == TransactionLine.Direction.DEBIT)
+            .map(TransactionLine::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    Span summaryText =
+        new Span(
+            String.format(
+                "%s: %s - Total: $%,.2f",
+                typeName, transaction.getDescription(), total.doubleValue()));
+    summaryText.getStyle().set("font-weight", "bold");
+
+    content.add(warningText, summaryText);
+
+    Button postBtn = new Button("Post Transaction");
+    postBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
+    postBtn.addClickListener(
+        e -> {
+          try {
+            postingService.postTransaction(transaction, companyContextService.getCurrentUser());
+            Notification.show(
+                    "Transaction posted successfully", 3000, Notification.Position.BOTTOM_START)
+                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+            dialog.close();
+            loadTransactions();
+          } catch (IllegalStateException ex) {
+            Notification.show(ex.getMessage(), 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+          }
+        });
+
+    Button cancelBtn = new Button("Cancel", e -> dialog.close());
+
+    dialog.add(content);
+    dialog.getFooter().add(cancelBtn, postBtn);
+    dialog.open();
   }
 
   private void deleteTransaction(Transaction transaction) {

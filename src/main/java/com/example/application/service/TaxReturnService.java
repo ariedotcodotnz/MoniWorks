@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -130,7 +129,12 @@ public class TaxReturnService {
         "TAX_RETURN_GENERATED",
         "TaxReturn",
         taxReturn.getId(),
-        "Generated GST return (" + basisDescription + " basis) for " + startDate + " to " + endDate);
+        "Generated GST return ("
+            + basisDescription
+            + " basis) for "
+            + startDate
+            + " to "
+            + endDate);
 
     return taxReturn;
   }
@@ -209,8 +213,7 @@ public class TaxReturnService {
       }
 
       // Calculate proportion of payment vs invoice total
-      BigDecimal proportion =
-          allocationAmount.divide(invoice.getTotal(), 10, RoundingMode.HALF_UP);
+      BigDecimal proportion = allocationAmount.divide(invoice.getTotal(), 10, RoundingMode.HALF_UP);
 
       // Calculate proportional amounts
       BigDecimal proportionalSales =
@@ -222,8 +225,7 @@ public class TaxReturnService {
       totals.totalSales = totals.totalSales.add(proportionalSales);
 
       // Check if zero-rated (tax total is zero)
-      if (invoice.getTaxTotal() == null
-          || invoice.getTaxTotal().compareTo(BigDecimal.ZERO) == 0) {
+      if (invoice.getTaxTotal() == null || invoice.getTaxTotal().compareTo(BigDecimal.ZERO) == 0) {
         totals.zeroRatedSales = totals.zeroRatedSales.add(proportionalSales);
         totals.zeroRatedCount++;
       } else {
