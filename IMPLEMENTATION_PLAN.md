@@ -81,6 +81,7 @@
 - **Phase 74 Cash Basis GST Return Support COMPLETE** - Tag: 0.8.7
 - **Phase 75 Posting Confirmation Dialog COMPLETE** - Tag: 0.8.8
 - **Phase 76 Email Validation Enhancement COMPLETE** - Tag: 0.8.9
+- **Phase 77 Direct Credit File Export for Batch Payments COMPLETE** - Tag: 0.9.0
 - All 301 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 13, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 15, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 32, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21, KPIImportServiceTest: 16, RecurringTemplateServiceTest: 8, TaxReturnServiceTest: 8)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1924,6 +1925,22 @@ Per specs, Release 1 must deliver:
 - [x] All 301 tests passing (ContactImportServiceTest: 15)
 - [x] No forbidden markers
 
+### Phase 77: Direct Credit File Export for Batch Payments (COMPLETE) - Tag: 0.9.0
+- [x] Created DirectCreditExportService for exporting payment runs to bank file formats
+- [x] Supports two export formats:
+  - CSV: Generic comma-separated format for most NZ bank portals with columns for payee, bank account, amount, reference, etc.
+  - ABA: Fixed-width format used by ANZ, Westpac, and other AU/NZ banks with header, detail, and trailer records
+- [x] Export validates supplier bank details and reports warnings for suppliers missing bank info
+- [x] Parses NZ bank account format (BB-bbbb-AAAAAAA-SSS) for proper formatting
+- [x] Added ExportFormat enum and ExportResult record for type-safe exports
+- [x] Added "Export Direct Credit" button to PaymentRunsView for completed payment runs
+- [x] Dialog allows format selection with explanatory help text
+- [x] Shows export summary including payment count, total amount, and any warnings
+- [x] Downloads generated file directly in browser
+- [x] Implements spec 10 "direct credit file export" requirement
+- [x] All 301 tests passing
+- [x] No forbidden markers
+
 ## Lessons Learned
 - VaadinWebSecurity deprecated in Vaadin 24.8+ - use VaadinSecurityConfigurer.vaadin() instead
 - Test profile should use hibernate.ddl-auto=create-drop with Flyway disabled to avoid schema conflicts
@@ -2008,6 +2025,7 @@ Per specs, Release 1 must deliver:
 - Dashboard tiles can leverage existing repository methods (e.g., ContactNoteRepository.findDueFollowUpsByCompany()) - check for existing queries before writing new ones; existing domain queries often already support dashboard use cases
 - AllocationRule.matches() now has 3-parameter overload (description, amount, counterParty) for spec 05 counter-party matching; counter-party extracted from BankFeedItem.rawJson via extractCounterParty() supporting QIF JSON and OFX formats
 - RecurringTemplateService price/description updates: When updatePricesOnExecution is true, executeInvoiceTemplate/executeBillTemplate fetch current product prices (sellPrice for invoices, buyPrice for bills) and names before creating the document; requires productId to be serialized in invoice/bill line payloads
+- DirectCreditExportService supports multiple bank file formats (CSV generic, ABA fixed-width); NZ bank accounts use BB-bbbb-AAAAAAA-SSS format parsed into bank-branch and account-suffix components
 
 ## Remaining Gaps (From Spec Analysis)
 
@@ -2016,9 +2034,6 @@ Per specs, Release 1 must deliver:
 - Entry screen customization (spec 15)
 - StockLocation, InventoryMovement entities (spec 08)
 - Full inventory valuation, serial/batch tracking (spec 08)
-
-**Nice-to-have Enhancements**:
-- Direct credit file export for batch payments (spec 10)
 
 **Completed in this session**:
 - AP_CLERK/AR_CLERK roles - Phase 57
@@ -2034,6 +2049,7 @@ Per specs, Release 1 must deliver:
 - Email reports from ReportsView (spec 13) - Phase 72
 - ProductsView active/inventoried filters (spec 08) - Phase 73
 - Cash basis GST return generation (spec 06) - Phase 74
+- Direct credit file export for batch payments (spec 10) - Phase 77
 
 ## Technical Notes
 - Build: `./mvnw compile`

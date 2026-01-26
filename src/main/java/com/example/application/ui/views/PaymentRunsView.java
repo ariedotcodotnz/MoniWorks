@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 import com.example.application.domain.*;
 import com.example.application.domain.PaymentRun.PaymentRunStatus;
 import com.example.application.service.*;
+import com.example.application.service.DirectCreditExportService.ExportFormat;
+import com.example.application.service.DirectCreditExportService.ExportResult;
 import com.example.application.service.PaymentRunService.PaymentRunBill;
 import com.example.application.ui.MainLayout;
 import com.vaadin.flow.component.button.Button;
@@ -64,6 +66,7 @@ public class PaymentRunsView extends VerticalLayout {
   private final AttachmentService attachmentService;
   private final CompanyContextService companyContextService;
   private final EmailService emailService;
+  private final DirectCreditExportService directCreditExportService;
 
   private final Grid<PaymentRun> runGrid = new Grid<>();
   private final VerticalLayout detailPanel = new VerticalLayout();
@@ -83,7 +86,8 @@ public class PaymentRunsView extends VerticalLayout {
       AccountService accountService,
       AttachmentService attachmentService,
       CompanyContextService companyContextService,
-      EmailService emailService) {
+      EmailService emailService,
+      DirectCreditExportService directCreditExportService) {
     this.paymentRunService = paymentRunService;
     this.supplierBillService = supplierBillService;
     this.contactService = contactService;
@@ -91,6 +95,7 @@ public class PaymentRunsView extends VerticalLayout {
     this.attachmentService = attachmentService;
     this.companyContextService = companyContextService;
     this.emailService = emailService;
+    this.directCreditExportService = directCreditExportService;
 
     addClassName("payment-runs-view");
     setSizeFull();
@@ -266,6 +271,11 @@ public class PaymentRunsView extends VerticalLayout {
       emailBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
       emailBtn.addClickListener(e -> openEmailRemittanceDialog());
       actionButtons.add(emailBtn);
+
+      Button exportBtn = new Button("Export Direct Credit", VaadinIcon.FILE_TABLE.create());
+      exportBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+      exportBtn.addClickListener(e -> openDirectCreditExportDialog());
+      actionButtons.add(exportBtn);
     }
 
     HorizontalLayout headerLayout = new HorizontalLayout(header, actionButtons);
@@ -960,6 +970,150 @@ public class PaymentRunsView extends VerticalLayout {
     } else {
       Notification.show("Sent: " + sent + ", Failed: " + failed, 5000, Notification.Position.MIDDLE)
           .addThemeVariants(NotificationVariant.LUMO_WARNING);
+    }
+  }
+
+  /**
+   * Opens a dialog for exporting the payment run to a direct credit file format for bank
+   * submission.
+   */
+  private void openDirectCreditExportDialog() {
+    if (selectedRun == null || !selectedRun.isCompleted()) {
+      return;
+    }
+
+    Dialog dialog = new Dialog();
+    dialog.setHeaderTitle("Export Direct Credit File");
+    dialog.setWidth("500px");
+
+    VerticalLayout content = new VerticalLayout();
+    content.setPadding(false);
+    content.setSpacing(true);
+
+    // Format selection
+    ComboBox<ExportFormat> formatCombo = new ComboBox<>("Export Format");
+    formatCombo.setItems(ExportFormat.values());
+    formatCombo.setItemLabelGenerator(ExportFormat::getDisplayName);
+    formatCombo.setValue(ExportFormat.CSV);
+    formatCombo.setWidthFull();
+
+    // Explanation
+    Span helpText = new Span();
+    helpText.getStyle().set("color", "var(--lumo-secondary-text-color)");
+    helpText.getStyle().set("font-size", "var(--lumo-font-size-s)");
+    updateExportHelpText(helpText, ExportFormat.CSV);
+
+    formatCombo.addValueChangeListener(
+        e -> {
+          if (e.getValue() != null) {
+            updateExportHelpText(helpText, e.getValue());
+          }
+        });
+
+    // Run info
+    VerticalLayout runInfo = new VerticalLayout();
+    runInfo.setPadding(false);
+    runInfo.setSpacing(false);
+    runInfo.add(new Span("Payment Run #" + selectedRun.getId()));
+    runInfo.add(new Span("Run Date: " + formatDate(selectedRun.getRunDate())));
+    runInfo.add(new Span("Total: " + formatMoney(paymentRunService.getRunTotal(selectedRun))));
+
+    content.add(runInfo, formatCombo, helpText);
+
+    // Results area (hidden initially)
+    VerticalLayout resultsArea = new VerticalLayout();
+    resultsArea.setPadding(false);
+    resultsArea.setSpacing(false);
+    resultsArea.setVisible(false);
+    content.add(resultsArea);
+
+    dialog.add(content);
+
+    // Footer buttons
+    Button cancelBtn = new Button("Cancel", e -> dialog.close());
+    Button exportBtn = new Button("Export", VaadinIcon.DOWNLOAD.create());
+    exportBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+    exportBtn.addClickListener(
+        e -> {
+          ExportFormat format = formatCombo.getValue();
+          if (format == null) {
+            Notification.show("Please select an export format")
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          try {
+            ExportResult result = directCreditExportService.exportPaymentRun(selectedRun, format);
+
+            // Show results
+            resultsArea.removeAll();
+            resultsArea.setVisible(true);
+            resultsArea.add(new Span("Exported " + result.paymentCount() + " payment(s)"));
+            resultsArea.add(new Span("Total amount: " + formatMoney(result.totalAmount())));
+
+            // Show warnings if any
+            if (result.warnings() != null && !result.warnings().isEmpty()) {
+              Span warningHeader = new Span("Warnings:");
+              warningHeader.getStyle().set("color", "var(--lumo-warning-text-color)");
+              resultsArea.add(warningHeader);
+              for (String warning : result.warnings()) {
+                Span warningSpan = new Span("• " + warning);
+                warningSpan.getStyle().set("color", "var(--lumo-warning-text-color)");
+                warningSpan.getStyle().set("font-size", "var(--lumo-font-size-s)");
+                resultsArea.add(warningSpan);
+              }
+            }
+
+            // Create download link
+            StreamResource resource =
+                new StreamResource(
+                    result.filename(), () -> new ByteArrayInputStream(result.content()));
+            resource.setContentType(result.contentType());
+            resource.setCacheTime(0);
+
+            Anchor downloadLink = new Anchor(resource, "");
+            downloadLink.getElement().setAttribute("download", true);
+
+            Button downloadBtn =
+                new Button("Download " + result.filename(), VaadinIcon.DOWNLOAD.create());
+            downloadBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
+            downloadLink.add(downloadBtn);
+
+            resultsArea.add(downloadLink);
+
+            // Disable export button after successful export
+            exportBtn.setEnabled(false);
+
+            Notification.show(
+                    "Direct credit file generated successfully",
+                    3000,
+                    Notification.Position.BOTTOM_START)
+                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+          } catch (Exception ex) {
+            Notification.show("Export failed: " + ex.getMessage())
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+          }
+        });
+
+    dialog.getFooter().add(cancelBtn, exportBtn);
+    dialog.open();
+  }
+
+  /** Updates the help text based on the selected export format. */
+  private void updateExportHelpText(Span helpText, ExportFormat format) {
+    switch (format) {
+      case CSV:
+        helpText.setText(
+            "Generic CSV format compatible with most NZ bank portals. "
+                + "Upload this file to your online banking to process batch payments.");
+        break;
+      case ABA:
+        helpText.setText(
+            "ABA format used by ANZ, Westpac, and some other banks. "
+                + "Fixed-width format suitable for host-to-host banking systems.");
+        break;
     }
   }
 }
