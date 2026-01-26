@@ -76,6 +76,7 @@
 - **Phase 69 Audit Trail CSV Export COMPLETE** - Tag: 0.8.2
 - **Phase 70 Bank Reconciliation Matching Enhancement COMPLETE** - Tag: 0.8.3
 - **Phase 71 Contact Color Tag UI COMPLETE** - Tag: 0.8.4
+- **Phase 72 Email Reports from ReportsView COMPLETE** - Tag: 0.8.5
 - All 290 tests passing (PostingServiceTest: 7, ReportingServiceTest: 5, TaxCalculationServiceTest: 14, AttachmentServiceTest: 13, GlobalSearchServiceTest: 12, EmailServiceTest: 23, InvitationServiceTest: 18, SalesInvoiceServiceTest: 15, ContactImportServiceTest: 12, BudgetImportServiceTest: 16, ProductImportServiceTest: 14, ApplicationTest: 1, AuthenticationEventListenerTest: 5, AuditLogoutHandlerTest: 4, ReceivableAllocationServiceTest: 13, PayableAllocationServiceTest: 13, BankImportServiceTest: 13, AllocationRuleTest: 32, SupplierBillServiceTest: 15, TransactionImportServiceTest: 21, KPIImportServiceTest: 16, RecurringTemplateServiceTest: 8)
 - Core domain entities created: Company, User, Account, FiscalYear, Period, Transaction, TransactionLine, LedgerEntry, TaxCode, TaxLine, TaxReturn, TaxReturnLine, Department, Role, Permission, CompanyMembership, AuditEvent, BankStatementImport, BankFeedItem, AllocationRule, Attachment, AttachmentLink, Contact, ContactPerson, ContactNote, Product, SalesInvoice, SalesInvoiceLine, ReceivableAllocation, SupplierBill, SupplierBillLine, PayableAllocation, PaymentRun, Budget, BudgetLine, KPI, KPIValue, RecurringTemplate, RecurrenceExecutionLog, SavedView, UserInvitation, ReconciliationMatch
 - Database configured: H2 for development, PostgreSQL for production
@@ -1835,6 +1836,30 @@ Per specs, Release 1 must deliver:
   - Shows color badge in read-only detail view
   - Consistent styling with grid column display
 - [x] Fixes spec 07 "categories + color tags" requirement
+- [x] All 290 tests passing
+- [x] No forbidden markers
+
+### Phase 72: Email Reports from ReportsView (COMPLETE) - Tag: 0.8.5
+- [x] Added EmailService integration to ReportsView (spec 13)
+  - Injected EmailService as constructor dependency
+  - Added TextField and TextArea imports for email dialog
+- [x] Created reusable openEmailReportDialog() method
+  - Dialog with recipient email, subject, and message fields
+  - Pre-populated subject with report name and company
+  - Pre-populated message with report description and sender name
+  - Attaches PDF report to email
+  - Error handling for invalid email and send failures
+- [x] Added Email button to all 9 report export sections (spec 13)
+  - Trial Balance
+  - Profit & Loss
+  - Balance Sheet
+  - Budget vs Actual
+  - AR Aging
+  - AP Aging
+  - Cashflow Statement
+  - Bank Register
+  - Reconciliation Status
+- [x] Implements spec 13 "email sending" requirement for reports
 - [x] All 290 tests passing
 - [x] No forbidden markers
 

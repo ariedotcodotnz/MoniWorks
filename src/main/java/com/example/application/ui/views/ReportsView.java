@@ -34,6 +34,8 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
+import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
@@ -60,6 +62,7 @@ public class ReportsView extends VerticalLayout {
   private final LedgerEntryRepository ledgerEntryRepository;
   private final SalesInvoiceRepository salesInvoiceRepository;
   private final SupplierBillRepository supplierBillRepository;
+  private final EmailService emailService;
 
   private final DatePicker startDatePicker = new DatePicker("Start Date");
   private final DatePicker endDatePicker = new DatePicker("End Date");
@@ -125,7 +128,8 @@ public class ReportsView extends VerticalLayout {
       TransactionService transactionService,
       LedgerEntryRepository ledgerEntryRepository,
       SalesInvoiceRepository salesInvoiceRepository,
-      SupplierBillRepository supplierBillRepository) {
+      SupplierBillRepository supplierBillRepository,
+      EmailService emailService) {
     this.reportingService = reportingService;
     this.reportExportService = reportExportService;
     this.companyContextService = companyContextService;
@@ -137,6 +141,7 @@ public class ReportsView extends VerticalLayout {
     this.ledgerEntryRepository = ledgerEntryRepository;
     this.salesInvoiceRepository = salesInvoiceRepository;
     this.supplierBillRepository = supplierBillRepository;
+    this.emailService = emailService;
 
     addClassName("reports-view");
     setSizeFull();
@@ -1354,7 +1359,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    tbExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Trial Balance",
+                "TrialBalance_" + dateStr + ".pdf",
+                () -> reportExportService.exportTrialBalanceToPdf(currentTrialBalance, company)));
+
+    tbExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     tbExportButtons.setVisible(true);
   }
 
@@ -1407,7 +1422,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    plExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Profit & Loss",
+                "ProfitAndLoss_" + dateStr + ".pdf",
+                () -> reportExportService.exportProfitAndLossToPdf(currentProfitAndLoss, company)));
+
+    plExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     plExportButtons.setVisible(true);
   }
 
@@ -1460,7 +1485,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    bsExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Balance Sheet",
+                "BalanceSheet_" + dateStr + ".pdf",
+                () -> reportExportService.exportBalanceSheetToPdf(currentBalanceSheet, company)));
+
+    bsExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     bsExportButtons.setVisible(true);
   }
 
@@ -1515,7 +1550,18 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    bvaExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Budget vs Actual",
+                "BudgetVsActual_" + dateStr + ".pdf",
+                () ->
+                    reportExportService.exportBudgetVsActualToPdf(currentBudgetVsActual, company)));
+
+    bvaExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     bvaExportButtons.setVisible(true);
   }
 
@@ -1569,7 +1615,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    arAgingExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "AR Aging",
+                "AR_Aging_" + dateStr + ".pdf",
+                () -> reportExportService.exportArAgingToPdf(currentArAgingReport, company)));
+
+    arAgingExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     arAgingExportButtons.setVisible(true);
   }
 
@@ -1623,7 +1679,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    apAgingExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "AP Aging",
+                "AP_Aging_" + dateStr + ".pdf",
+                () -> reportExportService.exportApAgingToPdf(currentApAgingReport, company)));
+
+    apAgingExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     apAgingExportButtons.setVisible(true);
   }
 
@@ -1924,7 +1990,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    cashflowExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Cashflow Statement",
+                "Cashflow_" + dateStr + ".pdf",
+                () -> reportExportService.exportCashflowToPdf(currentCashflowStatement, company)));
+
+    cashflowExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     cashflowExportButtons.setVisible(true);
   }
 
@@ -2712,7 +2788,17 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    bankRegisterExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Bank Register",
+                "BankRegister_" + accountCode + "_" + dateStr + ".pdf",
+                () -> reportExportService.exportBankRegisterToPdf(currentBankRegister, company)));
+
+    bankRegisterExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     bankRegisterExportButtons.setVisible(true);
   }
 
@@ -2968,7 +3054,127 @@ public class ReportsView extends VerticalLayout {
     csvBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
     csvLink.add(csvBtn);
 
-    reconciliationStatusExportButtons.add(pdfLink, excelLink, csvLink);
+    // Email Button
+    Button emailBtn = new Button("Email", VaadinIcon.ENVELOPE.create());
+    emailBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+    emailBtn.addClickListener(
+        e ->
+            openEmailReportDialog(
+                "Reconciliation Status",
+                "ReconciliationStatus_" + dateStr + ".pdf",
+                () ->
+                    reportExportService.exportReconciliationStatusToPdf(
+                        currentReconciliationStatus, company)));
+
+    reconciliationStatusExportButtons.add(pdfLink, excelLink, csvLink, emailBtn);
     reconciliationStatusExportButtons.setVisible(true);
+  }
+
+  // ==================== EMAIL REPORT METHODS ====================
+
+  /**
+   * Opens a dialog to email a report. Allows user to specify recipient email, subject, and message.
+   *
+   * @param reportName The name of the report for the default subject
+   * @param defaultFilename The filename for the PDF attachment
+   * @param pdfGenerator A supplier that generates the PDF bytes
+   */
+  private void openEmailReportDialog(
+      String reportName, String defaultFilename, java.util.function.Supplier<byte[]> pdfGenerator) {
+    Company company = companyContextService.getCurrentCompany();
+    User user = companyContextService.getCurrentUser();
+
+    if (company == null || user == null) {
+      Notification.show("Please select a company first", 3000, Notification.Position.MIDDLE)
+          .addThemeVariants(NotificationVariant.LUMO_WARNING);
+      return;
+    }
+
+    Dialog dialog = new Dialog();
+    dialog.setHeaderTitle("Email " + reportName);
+    dialog.setWidth("500px");
+
+    VerticalLayout layout = new VerticalLayout();
+    layout.setPadding(false);
+    layout.setSpacing(true);
+
+    TextField recipientField = new TextField("Recipient Email");
+    recipientField.setWidthFull();
+    recipientField.setRequired(true);
+    recipientField.setHelperText("Enter the email address to send the report to");
+
+    TextField subjectField = new TextField("Subject");
+    subjectField.setWidthFull();
+    subjectField.setValue(reportName + " - " + company.getName());
+
+    TextArea messageArea = new TextArea("Message");
+    messageArea.setWidthFull();
+    messageArea.setHeight("150px");
+    messageArea.setValue(
+        "Please find attached the "
+            + reportName
+            + " report.\n\nRegards,\n"
+            + user.getDisplayName());
+
+    layout.add(recipientField, subjectField, messageArea);
+
+    Button sendButton = new Button("Send Email", VaadinIcon.ENVELOPE.create());
+    sendButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    sendButton.addClickListener(
+        e -> {
+          String recipient = recipientField.getValue();
+          if (recipient == null || recipient.isBlank() || !recipient.contains("@")) {
+            Notification.show(
+                    "Please enter a valid email address", 3000, Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+          }
+
+          try {
+            byte[] pdfBytes = pdfGenerator.get();
+
+            EmailService.EmailAttachment attachment =
+                new EmailService.EmailAttachment(defaultFilename, "application/pdf", pdfBytes);
+
+            EmailService.EmailRequest request =
+                EmailService.EmailRequest.builder()
+                    .to(recipient)
+                    .subject(subjectField.getValue())
+                    .bodyText(messageArea.getValue())
+                    .attachment(attachment)
+                    .company(company)
+                    .sender(user)
+                    .build();
+
+            EmailService.EmailResult result = emailService.sendEmail(request);
+
+            if (result.success()) {
+              Notification.show(
+                      "Report emailed successfully to " + recipient,
+                      3000,
+                      Notification.Position.BOTTOM_START)
+                  .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+              dialog.close();
+            } else {
+              Notification.show(
+                      "Failed to send email: " + result.message(),
+                      5000,
+                      Notification.Position.MIDDLE)
+                  .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+          } catch (Exception ex) {
+            Notification.show(
+                    "Error generating report: " + ex.getMessage(),
+                    5000,
+                    Notification.Position.MIDDLE)
+                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+          }
+        });
+
+    Button cancelButton = new Button("Cancel", e -> dialog.close());
+
+    dialog.add(layout);
+    dialog.getFooter().add(cancelButton, sendButton);
+    dialog.open();
   }
 }
